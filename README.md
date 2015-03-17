@@ -24,7 +24,7 @@ val prices: RDD[(Ticker, Quote)] = ...
 Assuming you have a function calculates exponential moving averages (EMAs), you could produce time series of EMAs for all tickers as follows:
 ```
 val emas: Iterator[Double] => Iterator[Double] = ...
-prices.groupSorted(Ordering.by[Quote, Int](_.time)).mapStreamByKey{ iter => emas(iter.map(_.price)) }
+prices.groupSort(Ordering.by[Quote, Int](_.time)).mapStreamByKey{ iter => emas(iter.map(_.price)) }
 ```
 
 Currently this library is alpha stage.

@@ -11,7 +11,7 @@ object PairRDDFunctions {
 }
 
 class PairRDDFunctions[K: ClassTag, V: ClassTag](self: RDD[(K, V)]) extends Logging with Serializable {
-  def groupSorted(partitioner: Partitioner, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = 
+  def groupSort(partitioner: Partitioner, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = 
     (self, valueOrdering) match {
       case (gs: GroupSorted[K, V], vo) if gs.valueOrdering == vo =>
         gs
@@ -28,18 +28,18 @@ class PairRDDFunctions[K: ClassTag, V: ClassTag](self: RDD[(K, V)]) extends Logg
         GroupSorted(shuffled, Some(vo))
     }
 
-  def groupSorted(partitioner: Partitioner, valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
-    groupSorted(partitioner, Some(valueOrdering))
+  def groupSort(partitioner: Partitioner, valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
+    groupSort(partitioner, Some(valueOrdering))
 
-  def groupSorted(numPartitions: Int, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
-    groupSorted(new HashPartitioner(numPartitions), valueOrdering)
+  def groupSort(numPartitions: Int, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
+    groupSort(new HashPartitioner(numPartitions), valueOrdering)
 
-  def groupSorted(numPartitions: Int, valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
-    groupSorted(new HashPartitioner(numPartitions), Some(valueOrdering))
+  def groupSort(numPartitions: Int, valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
+    groupSort(new HashPartitioner(numPartitions), Some(valueOrdering))
 
-  def groupSorted(valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
-    groupSorted(defaultPartitioner(self), valueOrdering)
+  def groupSort(valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
+    groupSort(defaultPartitioner(self), valueOrdering)
 
-  def groupSorted(valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
-    groupSorted(defaultPartitioner(self), Some(valueOrdering))
+  def groupSort(valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =
+    groupSort(defaultPartitioner(self), Some(valueOrdering))
 }
