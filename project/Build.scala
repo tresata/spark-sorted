@@ -1,5 +1,6 @@
 import sbt._
 import sbt.Keys._
+import sbtsparkpackage.SparkPackagePlugin.autoImport._
 import net.virtualvoid.sbt.graph.Plugin._
 
 object ProjectBuild extends Build {
@@ -12,10 +13,15 @@ object ProjectBuild extends Build {
       version := "0.1.0",
       scalaVersion := "2.10.4",
       crossScalaVersions := Seq("2.10.4", "2.11.5"),
-      libraryDependencies ++= Seq(
-        "org.apache.spark" %% "spark-core" % "1.2.0" % "provided",
-        "org.scalatest" %% "scalatest" % "2.2.1" % "test"
-      ),
+      // sbt-spark-package settings
+      spName := "tresata/spark-sorted",
+      sparkVersion := "1.2.0",
+      sparkComponents += "core",
+      spIncludeMaven := true,
+      spAppendScalaVersion := true,
+      // end sbt-spark-package settings
+      licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
+      libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test",
       publishMavenStyle := true,
       pomIncludeRepository := { x => false },
       publishArtifact in Test := false,
@@ -29,14 +35,6 @@ object ProjectBuild extends Build {
       credentials += Credentials(Path.userHome / ".m2" / "credentials_sonatype"),
       pomExtra := (
         <url>https://github.com/tresata/spark-scalding</url>
-        <licenses>
-          <license>
-            <name>Apache 2</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>  
-            <distribution>repo</distribution>
-            <comments>A business-friendly OSS license</comments>
-          </license>
-        </licenses>
         <scm>
           <url>git@github.com:tresata/spark-scalding.git</url>
           <connection>scm:git:git@github.com:tresata/spark-scalding.git</connection>
