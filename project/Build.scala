@@ -10,7 +10,7 @@ object ProjectBuild extends Build {
     settings = Project.defaultSettings ++ graphSettings ++ Seq(
       organization := "com.tresata",
       name := "spark-sorted",
-      version := "0.1.0",
+      version := "0.2.0-SNAPSHOT",
       scalaVersion := "2.10.4",
       crossScalaVersions := Seq("2.10.4", "2.11.5"),
       // sbt-spark-package settings
