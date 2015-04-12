@@ -15,7 +15,7 @@ object ProjectBuild extends Build {
       crossScalaVersions := Seq("2.10.4", "2.11.5"),
       // sbt-spark-package settings
       spName := "tresata/spark-sorted",
-      sparkVersion := "1.2.0",
+      sparkVersion := "1.3.0",
       sparkComponents += "core",
       spIncludeMaven := true,
       spAppendScalaVersion := true,
