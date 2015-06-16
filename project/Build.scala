@@ -10,7 +10,7 @@ object ProjectBuild extends Build {
     settings = Project.defaultSettings ++ graphSettings ++ Seq(
       organization := "com.tresata",
       name := "spark-sorted",
-      version := "0.2.0",
+      version := "0.3.0-SNAPSHOT",
       scalaVersion := "2.10.4",
       crossScalaVersions := Seq("2.10.4", "2.11.5"),
       // sbt-spark-package settings
@@ -33,6 +33,7 @@ object ProjectBuild extends Build {
           Some("releases"  at nexus + "service/local/staging/deploy/maven2")
       },
       credentials += Credentials(Path.userHome / ".m2" / "credentials_sonatype"),
+      credentials += Credentials(Path.userHome / ".m2" / "credentials_spark_packages"),
       pomExtra := (
         <url>https://github.com/tresata/spark-scalding</url>
         <scm>
