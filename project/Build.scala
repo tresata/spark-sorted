@@ -12,10 +12,10 @@ object ProjectBuild extends Build {
       name := "spark-sorted",
       version := "0.3.0-SNAPSHOT",
       scalaVersion := "2.10.4",
-      crossScalaVersions := Seq("2.10.4", "2.11.5"),
+      crossScalaVersions := Seq("2.10.4", "2.11.6"),
       // sbt-spark-package settings
       spName := "tresata/spark-sorted",
-      sparkVersion := "1.3.0",
+      sparkVersion := "1.4.0",
       sparkComponents += "core",
       spIncludeMaven := true,
       spAppendScalaVersion := true,
