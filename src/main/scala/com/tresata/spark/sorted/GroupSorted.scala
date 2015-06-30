@@ -14,7 +14,7 @@ import org.apache.spark.rdd.RDD
 trait GroupSorted[K, V] extends RDD[(K, V)] {
   def valueOrdering: Option[Ordering[V]]
 
-  def mapStreamByKey[W: ClassTag](f: Iterator[V] => Iterator[W]): RDD[(K, W)] =
+  def mapStreamByKey[W: ClassTag](f: Iterator[V] => TraversableOnce[W]): RDD[(K, W)] =
     mapPartitions({ iter =>
       val biter = iter.buffered
 
@@ -28,7 +28,7 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
             override def next(): V = if (hasNext) biter.next()._2 else throw new NoSuchElementException("next on empty iterator")
           }
 
-          (f(viter).map((k, _)), { _ => while (viter.hasNext) viter.next() })
+          (f(viter).toIterator.map((k, _)), { _ => while (viter.hasNext) viter.next() })
         } else
           (Iterator.empty, identity)
 
