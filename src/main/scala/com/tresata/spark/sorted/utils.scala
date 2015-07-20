@@ -10,7 +10,7 @@ private class HashOrdering[A](ord: Ordering[A]) extends Ordering[A] {
   }
 }
 
-private class KeyPartitioner(partitioner: Partitioner) extends Partitioner {
+private case class KeyPartitioner(partitioner: Partitioner) extends Partitioner {
   override def numPartitions: Int = partitioner.numPartitions
 
   override def getPartition(key: Any): Int = partitioner.getPartition(key.asInstanceOf[Tuple2[Any, Any]]._1)

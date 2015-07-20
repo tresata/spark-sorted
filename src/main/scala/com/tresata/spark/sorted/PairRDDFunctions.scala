@@ -13,7 +13,11 @@ object PairRDDFunctions {
 class PairRDDFunctions[K: ClassTag, V: ClassTag](self: RDD[(K, V)]) extends Logging with Serializable {
   def groupSort(partitioner: Partitioner, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = 
     (self, valueOrdering) match {
-      case (gs: GroupSorted[K, V], vo) if gs.valueOrdering == vo =>
+      case (gs: GroupSorted[K, V], vo) if gs.valueOrdering == vo && (gs.partitioner match {
+        case Some(KeyPartitioner(p)) if p == partitioner => true
+        case _ => false
+      }) =>
+        log.info("re-using existing GroupSorted")
         gs
       case (rdd, None) =>
         log.info("creating GroupSorted without value ordering")
