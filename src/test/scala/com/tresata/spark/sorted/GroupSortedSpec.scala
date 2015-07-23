@@ -73,5 +73,12 @@ class GroupSortedSpec extends FunSpec {
       }
       assert(withMax.collect.toSet ===  Set(("a", 3), ("b", 10), ("c", 5)))
     }
+
+    it("should do foldLeftByKey with a mutable accumulator") {
+      import scala.collection.mutable.HashSet
+      val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
+      val sets = rdd.groupSort(new HashPartitioner(2), None).foldLeftByKey(new HashSet[String]){ case (set, str) => set.add(str); set }
+      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+    }
   }
 }

@@ -1,8 +1,9 @@
 package com.tresata.spark.sorted
 
+import java.nio.ByteBuffer
 import scala.reflect.ClassTag
 
-import org.apache.spark.{ Partition, Partitioner, TaskContext }
+import org.apache.spark.{ Partition, Partitioner, TaskContext, SparkEnv }
 import org.apache.spark.rdd.RDD
 
 /**
@@ -47,7 +48,16 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
       }
     }, true)
 
-  def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = mapStreamByKey(iter => Iterator(iter.foldLeft(w)(f)))
+  def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = {
+    // not-so-pretty stuff to serialize and deserialize w so it also works with mutable accumulators
+    val wBuffer = SparkEnv.get.serializer.newInstance().serialize(w)
+    val wArray = new Array[Byte](wBuffer.limit)
+    wBuffer.get(wArray)
+    lazy val cachedSerializer = SparkEnv.get.serializer.newInstance
+    val wCreate = () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
+
+    mapStreamByKey(iter => Iterator(iter.foldLeft(wCreate())(f)))
+  }
 }
 
 object GroupSorted {
