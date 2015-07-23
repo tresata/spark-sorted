@@ -50,6 +50,12 @@ class GroupSortedSpec extends FunSpec {
       assert(withMax.collect.toList.groupBy(identity).mapValues(_.size) ===  Map(("a", 3) -> 2, ("b", 10) -> 2, ("c", 5) -> 1))
     }
 
+    it("should do foldLeftByKey without value ordering") {
+      val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
+      val sets = rdd.groupSort(new HashPartitioner(2), None).foldLeftByKey(Set.empty[String]){ case (set, str) => set + str }
+      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+    }
+
     it("should do foldLeftByKey with value ordering") {
       val ord = Ordering.by[TimeValue, Int](_.time)
       val tseries = sc.parallelize(List(
@@ -58,12 +64,6 @@ class GroupSortedSpec extends FunSpec {
       ))
       val emas = tseries.groupSort(new HashPartitioner(2), Some(ord)).foldLeftByKey(0.0){ case (acc, TimeValue(time, value)) => 0.8 * acc + 0.2 * value }
       assert(emas.collect.toSet === Set((1, 1.0736), (5, 0.26)))
-    }
-
-    it("should do foldLeftByKey without value ordering") {
-      val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
-      val sets = rdd.groupSort(new HashPartitioner(2), None).foldLeftByKey(Set.empty[String]){ case (set, str) => set + str }
-      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
     }
 
     it("should do mapStreamByKey with value ordering while not exhausting iterators") {

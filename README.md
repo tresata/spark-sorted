@@ -27,6 +27,8 @@ val emas: Iterator[Double] => Iterator[Double] = ...
 prices.groupSort(Ordering.by[Quote, Int](_.time)).mapStreamByKey{ iter => emas(iter.map(_.price)) }
 ```
 
+A Java Api is available in package com.tresata.spark.sorted.api.java. Please see the unit tests for usage examples.
+
 Currently this library is alpha stage.
 
 Have fun!

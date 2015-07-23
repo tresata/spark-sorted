@@ -22,6 +22,9 @@ object ProjectBuild extends Build {
       // end sbt-spark-package settings
       licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
       libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test",
+      libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test",
+      testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
+      testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
       publishMavenStyle := true,
       pomIncludeRepository := { x => false },
       publishArtifact in Test := false,
