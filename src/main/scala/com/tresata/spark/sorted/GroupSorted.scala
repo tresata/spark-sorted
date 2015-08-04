@@ -1,6 +1,7 @@
 package com.tresata.spark.sorted
 
 import java.nio.ByteBuffer
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 import org.apache.spark.{ Partition, Partitioner, TaskContext, SparkEnv }
@@ -19,6 +20,7 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
     mapPartitions({ iter =>
       val biter = iter.buffered
 
+      @tailrec
       def perKeyIterator(biter: BufferedIterator[(K, V)]): (Iterator[(K, W)], (Unit => Unit)) =
         if (biter.hasNext) {
           val k = biter.head._1
@@ -29,7 +31,18 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
             override def next(): V = if (hasNext) biter.next()._2 else throw new NoSuchElementException("next on empty iterator")
           }
 
-          (f(viter).toIterator.map((k, _)), { _ => while (viter.hasNext) viter.next() })
+          val kwiter = f(viter).toIterator.map((k, _))
+          val finish = { (_: Unit) => while (viter.hasNext) viter.next() }
+
+          if (kwiter.hasNext)
+            (kwiter, finish)
+          else {
+            // see https://github.com/tresata/spark-sorted/issues/5
+            // if the returned iterator does not have any values next keys will not get processed
+            // the solution is to never return this iterator but move on to the next one
+            finish() // make sure underlying iterator is exhausted
+            perKeyIterator(biter)
+          }
         } else
           (Iterator.empty, identity)
 
@@ -39,7 +52,7 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
         override def hasNext: Boolean = {
           if (!kwiter.hasNext) {
             finish() // make sure underlying iterator is exhausted
-            val tmp = perKeyIterator(biter); kwiter = tmp._1; finish = tmp._2
+            val tmp = perKeyIterator(biter); kwiter = tmp._1; finish = tmp._2 // roll to next iterator
           }
           kwiter.hasNext
         }
