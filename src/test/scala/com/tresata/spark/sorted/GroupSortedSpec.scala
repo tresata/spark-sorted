@@ -3,10 +3,12 @@ package com.tresata.spark.sorted
 import org.apache.spark.HashPartitioner
 
 import org.scalatest.FunSpec
+import org.scalatest.prop.Checkers
+import org.scalacheck.{ Prop, Arbitrary }
 
 case class TimeValue(time: Int, value: Double)
 
-class GroupSortedSpec extends FunSpec {
+class GroupSortedSpec extends FunSpec with Checkers {
   lazy val sc = SparkSuite.sc
 
   import PairRDDFunctions._
@@ -86,6 +88,29 @@ class GroupSortedSpec extends FunSpec {
       val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
       val sets = rdd.groupSort(new HashPartitioner(2), None).foldLeftByKey(new HashSet[String]){ case (set, str) => set.add(str); set }
       assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+    }
+
+    it("should mapStreamByKey for many randomly generated datasets and take operations") {
+      val gen = Arbitrary.arbitrary[List[List[Int]]]
+
+      check(Prop.forAll(gen){ l =>
+        val nTake: List[Int] => Int = _.headOption.getOrElse(0).hashCode % 10
+
+        val input = l.zipWithIndex.map(_.swap)
+        val rdd = sc.parallelize(input)
+          .flatMapValues(identity)
+          .groupSort(new HashPartitioner(1), implicitly[Ordering[Int]])
+          .mapStreamByKey{ iter =>
+            val l = iter.toList
+            l.take(nTake(l))
+          }
+        val output = rdd.collect.toSet
+        val check = input.flatMap{ case (k, l) =>
+          val sorted = l.sorted
+          sorted.take(nTake(sorted)).map(v => (k, v))
+        }.toSet
+        check === output
+      })
     }
   }
 }

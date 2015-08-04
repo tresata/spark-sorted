@@ -23,6 +23,7 @@ object ProjectBuild extends Build {
       licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
       libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.1" % "test",
       libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test",
+      libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.11.5" % "test",
       testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
       testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
       publishMavenStyle := true,
