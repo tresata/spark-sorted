@@ -47,7 +47,11 @@ public class GroupSortedSuite implements Serializable {
   private <X, Y> Tuple2<X, Y> tuple2(X x, Y y) {
      return new Tuple2<X, Y>(x, y);
   }
-  
+
+  private <X> Set<X> set(X x) {
+    return Sets.newHashSet(x);
+  }
+
   @SuppressWarnings("unchecked")
   @Test
   public void testGroupSortNoValueComparator() {
@@ -153,5 +157,44 @@ public class GroupSortedSuite implements Serializable {
     Assert.assertTrue(ImmutableSet.copyOf(emas.collect()).equals(ImmutableSet.of(
       tuple2(1, 1.0736),
       tuple2(5, 0.26))));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReduceLeftNoValueComparator() {
+    List<Tuple2<String, Set<String>>> pairs = Lists.newArrayList(tuple2("c", set("x")), tuple2("a", set("b")), tuple2("a", set("c")), tuple2("b", set("e")), tuple2("b", set("d")));
+    JavaPairRDD<String, Set<String>> p = jsc().parallelizePairs(pairs);
+    GroupSorted<String, Set<String>> gs = new GroupSorted(p, new HashPartitioner(2));
+    JavaPairRDD<String, Set<String>> sets = gs.reduceLeftByKey(new Function2<Set<String>, Set<String>, Set<String>>() {
+      public Set<String> call(Set<String> x, Set<String> y) {
+        // watch out with just mutating here, it wont work
+        // i am not sure what is the optional way do this on java
+        // what i am doing here is clearly extremely ineffficient
+        Set<String> newAcc = Sets.newHashSet(x);
+        newAcc.addAll(y);
+        return newAcc;
+      }
+    });
+    Assert.assertTrue(ImmutableSet.copyOf(sets.collect()).equals(ImmutableSet.of(
+      tuple2("a", ImmutableSet.of("b", "c")),
+      tuple2("b", ImmutableSet.of("d", "e")),
+      tuple2("c", ImmutableSet.of("x")))));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReduceLeftValueComparator() {
+    List<Tuple2<String, String>> pairs = Lists.newArrayList(tuple2("c", "x"), tuple2("a", "b"), tuple2("a", "c"), tuple2("b", "e"), tuple2("b", "d"));
+    JavaPairRDD<String, String> p = jsc().parallelizePairs(pairs);
+    GroupSorted<String, String> gs = new GroupSorted(p, new HashPartitioner(2), String.CASE_INSENSITIVE_ORDER);
+    JavaPairRDD<String, String> sets = gs.reduceLeftByKey(new Function2<String, String, String>() {
+      public String call(String x, String y) {
+        return x + y;
+      }
+    });
+    Assert.assertTrue(ImmutableSet.copyOf(sets.collect()).equals(ImmutableSet.of(
+      tuple2("a", "bc"),
+      tuple2("b", "de"),
+      tuple2("c", "x"))));
   }
 }
