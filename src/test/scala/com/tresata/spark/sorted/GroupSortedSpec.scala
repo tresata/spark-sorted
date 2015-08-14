@@ -68,6 +68,18 @@ class GroupSortedSpec extends FunSpec with Checkers {
       assert(emas.collect.toSet === Set((1, 1.0736), (5, 0.26)))
     }
 
+    it("should reduceLeftByKey without value ordering") {
+      val rdd = sc.parallelize(List(("c", Set("x")), ("a", Set("b")), ("a", Set("c")), ("b", Set("e")), ("b", Set("d"))))
+      val sets = rdd.groupSort(new HashPartitioner(2), None).reduceLeftByKey { _ ++ _ }
+      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+    }
+
+    it("should reduceLeftByKey with value ordering") {
+      val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
+      val sets = rdd.groupSort(new HashPartitioner(2), Some(Ordering.String)).reduceLeftByKey { _ + _ }
+      assert(sets.collect.toMap === Map("a" -> "bc", "b" -> "de", "c" -> "x"))
+    }
+
     it("should mapStreamByKey with value ordering while not exhausting iterators") {
       val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
       val withMax = rdd.groupSort(new HashPartitioner(2), Some(implicitly[Ordering[Int]].reverse)).mapStreamByKey{ iter =>
