@@ -29,7 +29,7 @@ prices.groupSort(Ordering.by[Quote, Int](_.time)).mapStreamByKey{ iter => emas(i
 
 A Java Api is available in package com.tresata.spark.sorted.api.java. Please see the unit tests for usage examples.
 
-Currently this library is alpha stage.
+Currently this library is beta stage.
 
 Have fun!
 Team @ Tresata
