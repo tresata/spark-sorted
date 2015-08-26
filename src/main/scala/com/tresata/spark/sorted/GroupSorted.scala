@@ -71,6 +71,9 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
 
     mapStreamByKey(iter => Iterator(iter.foldLeft(wCreate())(f)))
   }
+
+  def reduceLeftByKey[W >: V: ClassTag](f: (W, V) => W): RDD[(K, W)] = mapStreamByKey(iter => Iterator(iter.reduceLeft(f)))
+
 }
 
 object GroupSorted {
