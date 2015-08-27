@@ -5,7 +5,6 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 
 import com.google.common.base.Optional
-import com.google.common.collect.{ Ordering => GuavaOrdering }
 
 import org.apache.spark.{ Partitioner, HashPartitioner }
 import org.apache.spark.Partitioner.defaultPartitioner
@@ -26,7 +25,7 @@ object GroupSorted {
 
   def fakeClassTag[T]: ClassTag[T] = ClassTag.AnyRef.asInstanceOf[ClassTag[T]]
 
-  private implicit def ordering[K]: Ordering[K] = comparatorToOrdering(GuavaOrdering.natural.asInstanceOf[Comparator[K]])
+  private implicit def ordering[K]: Ordering[K] = comparatorToOrdering(NaturalComparator.get[K])
 
   private def groupSort[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Optional[Comparator[V]]): SGroupSorted[K, V] = {
     implicit def kClassTag: ClassTag[K] = javaPairRDD.kClassTag
