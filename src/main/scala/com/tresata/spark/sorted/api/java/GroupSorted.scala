@@ -21,38 +21,38 @@ object GroupSorted {
 
   private def comparatorToOrdering[T](comparator: Comparator[T]): Ordering[T] = new ComparatorOrdering(comparator)
 
-  private def optionalToOption[T](optional: Optional[T]): Option[T] = if (optional.isPresent) Some(optional.get) else None
-
   def fakeClassTag[T]: ClassTag[T] = ClassTag.AnyRef.asInstanceOf[ClassTag[T]]
 
   private implicit def ordering[K]: Ordering[K] = comparatorToOrdering(NaturalComparator.get[K])
 
-  private def groupSort[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Optional[Comparator[V]]): SGroupSorted[K, V] = {
+  private def groupSort[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Comparator[V]): SGroupSorted[K, V] = {
     implicit def kClassTag: ClassTag[K] = javaPairRDD.kClassTag
     implicit def vClassTag: ClassTag[V] = javaPairRDD.vClassTag
-    javaPairRDD.rdd.groupSort(partitioner, optionalToOption(valueComparator).map(comparatorToOrdering(_)))
+    val valueOrdering = Option(valueComparator).map(comparatorToOrdering)
+    javaPairRDD.rdd.groupSort(partitioner, valueOrdering)
   }
 }
 
-class GroupSorted[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Optional[Comparator[V]])
+class GroupSorted[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Comparator[V])
     extends JavaPairRDD[K, V](GroupSorted.groupSort(javaPairRDD, partitioner, valueComparator))(javaPairRDD.kClassTag, javaPairRDD.vClassTag) {
-  def this(javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Comparator[V]) =
-    this(javaPairRDD, partitioner, Optional.of(valueComparator))
+
+  def this(javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Optional[Comparator[V]]) =
+    this(javaPairRDD, partitioner, valueComparator.orNull)
 
   def this(javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner) =
-    this(javaPairRDD, partitioner, Optional.absent[Comparator[V]])
+    this(javaPairRDD, partitioner, null.asInstanceOf[Comparator[V]])
 
   def this(javaPairRDD: JavaPairRDD[K, V], numPartitions: Int, valueComparator: Comparator[V]) =
-    this(javaPairRDD, new HashPartitioner(numPartitions), Optional.of(valueComparator))
+    this(javaPairRDD, new HashPartitioner(numPartitions), valueComparator)
 
   def this(javaPairRDD: JavaPairRDD[K, V], numPartitions: Int) =
-    this(javaPairRDD, new HashPartitioner(numPartitions), Optional.absent[Comparator[V]])
+    this(javaPairRDD, new HashPartitioner(numPartitions), null.asInstanceOf[Comparator[V]])
 
   def this(javaPairRDD: JavaPairRDD[K, V], valueComparator: Comparator[V]) =
-    this(javaPairRDD, defaultPartitioner(javaPairRDD.rdd), Optional.of(valueComparator))
+    this(javaPairRDD, defaultPartitioner(javaPairRDD.rdd), valueComparator)
 
   def this(javaPairRDD: JavaPairRDD[K, V]) = 
-    this(javaPairRDD, defaultPartitioner(javaPairRDD.rdd), Optional.absent[Comparator[V]])
+    this(javaPairRDD, defaultPartitioner(javaPairRDD.rdd), null.asInstanceOf[Comparator[V]])
 
   import GroupSorted._
 
