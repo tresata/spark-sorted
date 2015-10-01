@@ -48,6 +48,7 @@ public class GroupSortedSuite implements Serializable {
      return new Tuple2<X, Y>(x, y);
   }
 
+  @SuppressWarnings("unchecked")
   private <X> Set<X> set(X x) {
     return Sets.newHashSet(x);
   }

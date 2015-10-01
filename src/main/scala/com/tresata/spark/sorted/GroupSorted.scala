@@ -21,7 +21,7 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
       val biter = iter.buffered
 
       @tailrec
-      def perKeyIterator(biter: BufferedIterator[(K, V)]): (Iterator[(K, W)], (Unit => Unit)) =
+      def perKeyIterator(biter: BufferedIterator[(K, V)]): (Iterator[(K, W)], (() => Unit)) =
         if (biter.hasNext) {
           val k = biter.head._1
 
@@ -32,7 +32,7 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
           }
 
           val kwiter = f(viter).toIterator.map((k, _))
-          val finish = { (_: Unit) => while (viter.hasNext) viter.next() }
+          val finish = { () => while (viter.hasNext) viter.next() }
 
           if (kwiter.hasNext)
             (kwiter, finish)
@@ -44,7 +44,7 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
             perKeyIterator(biter)
           }
         } else
-          (Iterator.empty, identity)
+          (Iterator.empty, () => ())
 
       new Iterator[(K, W)] {
         private var (kwiter, finish) = perKeyIterator(biter)

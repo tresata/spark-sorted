@@ -13,6 +13,8 @@ object ProjectBuild extends Build {
       version := "0.4.0-SNAPSHOT",
       scalaVersion := "2.10.4",
       crossScalaVersions := Seq("2.10.4", "2.11.7"),
+      javacOptions ++= Seq("-Xlint:unchecked", "-source", "1.7", "-target", "1.7"),
+      scalacOptions ++= Seq("-unchecked", "-deprecation", "-target:jvm-1.7", "-feature", "-language:_"),
       // sbt-spark-package settings
       spName := "tresata/spark-sorted",
       sparkVersion := "1.5.1",
