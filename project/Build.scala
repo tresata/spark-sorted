@@ -41,10 +41,10 @@ object ProjectBuild extends Build {
       credentials += Credentials(Path.userHome / ".m2" / "credentials_sonatype"),
       credentials += Credentials(Path.userHome / ".m2" / "credentials_spark_packages"),
       pomExtra := (
-        <url>https://github.com/tresata/spark-scalding</url>
+        <url>https://github.com/tresata/spark-sorted</url>
         <scm>
-          <url>git@github.com:tresata/spark-scalding.git</url>
-          <connection>scm:git:git@github.com:tresata/spark-scalding.git</connection>
+          <url>git@github.com:tresata/spark-sorted.git</url>
+          <connection>scm:git:git@github.com:tresata/spark-sorted.git</connection>
         </scm>
         <developers>
           <developer>
