@@ -198,4 +198,31 @@ public class GroupSortedSuite implements Serializable {
       tuple2("b", "de"),
       tuple2("c", "x"))));
   }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testScanLeftValueComparator() {
+    List<Tuple2<String, String>> pairs = Lists.newArrayList(tuple2("c", "x"), tuple2("a", "b"), tuple2("a", "c"), tuple2("b", "e"), tuple2("b", "d"));
+    JavaPairRDD<String, String> p = jsc().parallelizePairs(pairs);
+    GroupSorted<String, String> gs = new GroupSorted(p, new HashPartitioner(2), String.CASE_INSENSITIVE_ORDER);
+    JavaPairRDD<String, Set<String>> sets = gs.scanLeftByKey(Sets.<String>newHashSet(), new Function2<Set<String>, String, Set<String>>() {
+      public Set<String> call(Set<String> acc, String x) {
+        // watch out with just mutating here, it wont work
+        // i am not sure what is the optional way do this on java
+        // what i am doing here is clearly extremely ineffficient
+        Set<String> newAcc = Sets.newHashSet(acc);
+        newAcc.add(x);
+        return newAcc;
+      }
+    });
+    Assert.assertTrue(ImmutableSet.copyOf(sets.collect()).equals(ImmutableSet.of(
+      tuple2("a", ImmutableSet.of()),
+      tuple2("a", ImmutableSet.of("b")),
+      tuple2("a", ImmutableSet.of("b", "c")),
+      tuple2("b", ImmutableSet.of()),
+      tuple2("b", ImmutableSet.of("d")),
+      tuple2("b", ImmutableSet.of("d", "e")),
+      tuple2("c", ImmutableSet.of()),
+      tuple2("c", ImmutableSet.of("x")))));
+  }
 }

@@ -102,6 +102,21 @@ class GroupSortedSpec extends FunSpec with Checkers {
       assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
     }
 
+    it("should scanLeftByKey with value ordering") {
+      val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
+      val sets = rdd.groupSort(new HashPartitioner(2), Some(Ordering.String)).scanLeftByKey(Set.empty[String]){ case (set, str) => set + str }
+      assert(sets.collect.toSet === Set(
+        ("a", Set()),
+        ("a", Set("b")),
+        ("a", Set("b", "c")),
+        ("b", Set()),
+        ("b", Set("d")),
+        ("b", Set("d", "e")),
+        ("c", Set()),
+        ("c", Set("x"))
+      ))
+    }
+
     it("should mapStreamByKey for many randomly generated datasets and take operations") {
       val gen = Arbitrary.arbitrary[List[List[Int]]]
 

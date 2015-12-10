@@ -72,4 +72,9 @@ class GroupSorted[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner
     implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
     new JavaPairRDD[K, W](sGroupSorted.reduceLeftByKey(f.call))
   }
+
+  def scanLeftByKey[W](w: W, f: JFunction2[W, V, W]): JavaPairRDD[K, W] = {
+    implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
+    new JavaPairRDD[K, W](sGroupSorted.scanLeftByKey(w)((w, v) => f.call(w, v)))
+  }
 }

@@ -61,19 +61,26 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
       }
     }, true)
 
-  def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = {
+  private def newWCreate[W: ClassTag](w: W): () => W = {
     // not-so-pretty stuff to serialize and deserialize w so it also works with mutable accumulators
     val wBuffer = SparkEnv.get.serializer.newInstance().serialize(w)
     val wArray = new Array[Byte](wBuffer.limit)
     wBuffer.get(wArray)
     lazy val cachedSerializer = SparkEnv.get.serializer.newInstance
-    val wCreate = () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
+    () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
+  }
 
+  def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = {
+    val wCreate = newWCreate(w)
     mapStreamByKey(iter => Iterator(iter.foldLeft(wCreate())(f)))
   }
 
   def reduceLeftByKey[W >: V: ClassTag](f: (W, V) => W): RDD[(K, W)] = mapStreamByKey(iter => Iterator(iter.reduceLeft(f)))
 
+  def scanLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = {
+    val wCreate = newWCreate(w)
+    mapStreamByKey(_.scanLeft(wCreate())(f))
+  }
 }
 
 object GroupSorted {
