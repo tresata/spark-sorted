@@ -22,7 +22,7 @@ class PairRDDFunctions[K: ClassTag, V: ClassTag](self: RDD[(K, V)]) extends Logg
       case (rdd, None) =>
         log.info("creating GroupSorted without value ordering")
         val shuffled = new ShuffledRDD[K, V, V](self, partitioner)
-          .setKeyOrdering(keyOrdering)
+          .setKeyOrdering(new HashOrdering(keyOrdering))
         GroupSorted(shuffled, None)
       case (rdd, Some(vo)) =>
         log.info("creating GroupSorted with value ordering")
