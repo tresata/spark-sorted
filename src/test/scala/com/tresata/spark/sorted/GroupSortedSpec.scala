@@ -1,6 +1,7 @@
 package com.tresata.spark.sorted
 
 import org.apache.spark.HashPartitioner
+import org.apache.spark.rdd.RDD
 
 import org.scalatest.FunSpec
 import org.scalatest.prop.Checkers
@@ -28,10 +29,60 @@ class GroupSortedSpec extends FunSpec with Checkers {
       assert(groupSorted.glom.collect.map(_.toList).toSet ===  Set(List((2, 1), (2, 3)), List((1, 2), (1, 3), (3, 1))))
     }
 
-    it("should groupSort on a GroupSorted with no effect") {
+    it("should groupSort on a GroupSorted without value ordering with no effect") {
       val rdd = sc.parallelize(List((1, 2), (2, 3), (1, 3), (3, 1), (2, 1)))
+
+      val groupSorted = rdd.groupSort(new HashPartitioner(2), None)
+      assert(groupSorted.groupSort(new HashPartitioner(2), None) eq groupSorted)
+    }
+
+    it("should groupSort on a GroupSorted with value ordering with no effect") {
+      val rdd = sc.parallelize(List((1, 2), (2, 3), (1, 3), (3, 1), (2, 1)))
+
       val groupSorted = rdd.groupSort(new HashPartitioner(2), Some(implicitly[Ordering[Int]]))
       assert(groupSorted.groupSort(new HashPartitioner(2), Some(implicitly[Ordering[Int]])) eq groupSorted)
+    }
+
+    it("should produce correctly partitioned key-value rdds without value ordering") {
+      val gen = Arbitrary.arbitrary[List[List[Int]]]
+
+      check(Prop.forAll(gen){ l =>
+        val input = l.zipWithIndex.map(_.swap)
+        val rdd = sc.parallelize(input)
+          .flatMapValues(identity)
+          .groupSort(new HashPartitioner(2), None)
+
+        def collectPartition(p: Int): List[(Int, Int)] = {
+          sc.runJob(rdd, (iter: Iterator[(Int, Int)]) => iter.toList, Seq(p)).head
+        }
+
+        rdd.partitioner.map{ partitioner =>
+          partitioner.numPartitions == rdd.partitions.size && (0 to rdd.partitions.size - 1).forall{ i =>
+            collectPartition(i).forall{ case (k, _) => partitioner.getPartition(k) == i }
+          }
+        }.getOrElse(false)
+      })
+    }
+
+    it("should produce correctly partitioned key-value rdds with value ordering") {
+      val gen = Arbitrary.arbitrary[List[List[Int]]]
+
+      check(Prop.forAll(gen){ l =>
+        val input = l.zipWithIndex.map(_.swap)
+        val rdd = sc.parallelize(input)
+          .flatMapValues(identity)
+          .groupSort(new HashPartitioner(2), Some(implicitly[Ordering[Int]]))
+
+        def collectPartition(p: Int): List[(Int, Int)] = {
+          sc.runJob(rdd, (iter: Iterator[(Int, Int)]) => iter.toList, Seq(p)).head
+        }
+
+        rdd.partitioner.map{ partitioner =>
+          partitioner.numPartitions == rdd.partitions.size && (0 to rdd.partitions.size - 1).forall{ i =>
+            collectPartition(i).forall{ case (k, _) => partitioner.getPartition(k) == i }
+          }
+        }.getOrElse(false)
+      })
     }
   }
 
@@ -117,7 +168,7 @@ class GroupSortedSpec extends FunSpec with Checkers {
       ))
     }
 
-    it("should mapStreamByKey for many randomly generated datasets and take operations") {
+    it("should mapStreamByKey with value ordering for randomly generated datasets and take operations") {
       val gen = Arbitrary.arbitrary[List[List[Int]]]
 
       check(Prop.forAll(gen){ l =>
@@ -136,6 +187,21 @@ class GroupSortedSpec extends FunSpec with Checkers {
           val sorted = l.sorted
           sorted.take(nTake(sorted.head)).map(v => (k, v))
         }.toSet
+        check === output
+      })
+    }
+
+    it("should reduceLeftByKey without value ordering for randomly generated datasets") {
+      val gen = Arbitrary.arbitrary[List[List[Int]]]
+
+      check(Prop.forAll(gen){ l =>
+        val input = l.zipWithIndex.map(_.swap)
+        val rdd = sc.parallelize(input)
+          .flatMapValues(identity)
+          .groupSort(new HashPartitioner(2), None)
+          .reduceLeftByKey(math.min)
+        val output = rdd.collect.toSet
+        val check = input.filter(_._2.size > 0).map{ case (k, l) => (k, l.reduce(math.min)) }.toSet
         check === output
       })
     }

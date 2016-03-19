@@ -14,7 +14,7 @@ class PairRDDFunctions[K: ClassTag, V: ClassTag](self: RDD[(K, V)]) extends Logg
   def groupSort(partitioner: Partitioner, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = 
     (self, valueOrdering) match {
       case (gs: GroupSorted[K, V], vo) if gs.valueOrdering == vo && (gs.partitioner match {
-        case Some(KeyPartitioner(p)) if p == partitioner => true
+        case Some(p) if p == partitioner => true
         case _ => false
       }) =>
         log.info("re-using existing GroupSorted")
@@ -28,8 +28,8 @@ class PairRDDFunctions[K: ClassTag, V: ClassTag](self: RDD[(K, V)]) extends Logg
         log.info("creating GroupSorted with value ordering")
         val shuffled = new ShuffledRDD[(K, V), Unit, Unit](self.map{ kv => (kv, ())}, new KeyPartitioner(partitioner))
           .setKeyOrdering(Ordering.Tuple2(new HashOrdering(keyOrdering), vo))
-          .mapPartitions(_.map(kv => (kv._1._1, kv._1._2)), true)
-        GroupSorted(shuffled, Some(vo))
+          .mapPartitions(_.map(kv => (kv._1._1, kv._1._2)), true) // the preservesPartitioning=true is a lie, but its fixed in the next line
+        GroupSorted(shuffled, Some(vo), Some(partitioner))        // partitioner is fixed here
     }
 
   def groupSort(partitioner: Partitioner, valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] =

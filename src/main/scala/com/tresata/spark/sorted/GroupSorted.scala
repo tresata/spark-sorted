@@ -84,17 +84,19 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
 }
 
 object GroupSorted {
-  def apply[K, V](rdd: RDD[(K, V)], valueOrdering: Option[Ordering[V]]): GroupSorted[K, V] = {
+  def apply[K, V](rdd: RDD[(K, V)], valueOrdering: Option[Ordering[V]]): GroupSorted[K, V] =
+    apply(rdd, valueOrdering, rdd.partitioner)
+
+  private[sorted] def apply[K, V](rdd: RDD[(K, V)], valueOrdering: Option[Ordering[V]], partitioner: Option[Partitioner]): GroupSorted[K, V] = {
     val vo = valueOrdering
+    val p = partitioner
     // there should be an easier way to do this
     new RDD[(K, V)](rdd) with GroupSorted[K, V] {
-      override def compute(split: Partition, context: TaskContext): Iterator[(K, V)] = rdd.compute(split, context)
+      override def compute(split: Partition, context: TaskContext): Iterator[(K, V)] = firstParent[(K, V)].compute(split, context)
 
-      override def getPartitions: Array[Partition] = rdd.partitions
+      override def getPartitions: Array[Partition] = firstParent[(K, V)].partitions
 
-      override val partitioner: Option[Partitioner] = rdd.partitioner
-
-      override protected def getPreferredLocations(split: Partition): Seq[String] = rdd.preferredLocations(split)
+      override val partitioner: Option[Partitioner] = p //firstParent[(K, V)].partitioner
 
       override def valueOrdering: Option[Ordering[V]] = vo
     }
