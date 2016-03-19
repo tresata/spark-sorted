@@ -121,20 +121,20 @@ class GroupSortedSpec extends FunSpec with Checkers {
       val gen = Arbitrary.arbitrary[List[List[Int]]]
 
       check(Prop.forAll(gen){ l =>
-        val nTake: List[Int] => Int = _.headOption.getOrElse(0).hashCode % 10
+        val nTake: Int => Int = i => i % 10
 
         val input = l.zipWithIndex.map(_.swap)
         val rdd = sc.parallelize(input)
           .flatMapValues(identity)
-          .groupSort(new HashPartitioner(1), implicitly[Ordering[Int]])
+          .groupSort(new HashPartitioner(2), implicitly[Ordering[Int]])
           .mapStreamByKey{ iter =>
-            val l = iter.toList
-            l.take(nTake(l))
+            val biter = iter.buffered
+            biter.take(nTake(biter.head))
           }
         val output = rdd.collect.toSet
-        val check = input.flatMap{ case (k, l) =>
+        val check = input.filter(_._2.size > 0).flatMap{ case (k, l) =>
           val sorted = l.sorted
-          sorted.take(nTake(sorted)).map(v => (k, v))
+          sorted.take(nTake(sorted.head)).map(v => (k, v))
         }.toSet
         check === output
       })
