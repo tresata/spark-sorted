@@ -6,7 +6,7 @@ import org.apache.spark.api.java.JavaSparkContext
 object SparkSuite {
   lazy val sc = {
     val conf = new SparkConf(false)
-      .setMaster("local")
+      .setMaster("local[*]")
       .setAppName("test")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .set("spark.ui.enabled", "false")

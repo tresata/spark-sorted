@@ -4,7 +4,7 @@
 Spark-sorted is a library that aims to make non-reduce type operations on very large groups in spark possible, including support for processing ordered values.  To do so it relies on Spark's new sort-based shuffle and on never materializing the group for a given key but instead representing it by consecutive rows within a partition that get processed with a map-like (iterator based streaming) operation.
 
 ## GroupSorted
-GroupSorted is a trait for key-value RDDs that also satisfy the following criteria:
+GroupSorted is a partitioned key-value RDDs that also satisfy the following criteria:
 * all rows (key, value pairs) for a given key are consecutive and in the same partition
 * the values can optionally be ordered per key
 
@@ -13,7 +13,7 @@ GroupSorted can be created from a RDD[(K, V)] using the rdd.groupSort operator. 
 import com.tresata.spark.sorted.PairRDDFunctions._
 ```
 
-GroupSorted adds 2 methods to a key-value RDD to process all values records for a given key: mapStreamByKey and foldLeftByKey.
+GroupSorted adds methods to a key-value RDD to process all values records for a given key: mapStreamByKey, foldLeftByKey, reduceLeftByKey and scanLeftByKey.
 
 For example say you have a data-set of stock prices, represented as follows:
 ```
@@ -33,3 +33,7 @@ Currently this library is beta stage.
 
 Have fun!
 Team @ Tresata
+
+Update Apr 2016
+Starting with release 0.7.0 GroupSorted operations will return another GroupSorted where possible, to retain the information on RDD layout (partitioning, ordering of keys, and ordering of values), so that operations can be chained efficiently.
+Also, we are introducing the mergeJoin operation on GroupSorted as an experimental feature. A mergeJoin takes advantage of the sorting of keys within partitions to join using a sort-merge join. This can be much faster than the default join for key-value RDDs. It also allows one side to stream through the join (without any buffering), while the other side is buffered in memory, making it more scalable for certain applications. Please note this limitation: since values for one side are fully buffered in memory per key, mergeJoin is probably unsuitable for many-to-many joins.

@@ -1,65 +1,45 @@
 package com.tresata.spark.sorted
 
 import java.nio.ByteBuffer
-import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
-import org.apache.spark.{ Partition, Partitioner, TaskContext, SparkEnv }
-import org.apache.spark.rdd.RDD
+import org.apache.spark.{ SparkEnv, Partition, Partitioner, TaskContext }
+import org.apache.spark.Partitioner.defaultPartitioner
+import org.apache.spark.rdd.{ RDD, ShuffledRDD }
 
 /**
-  * GroupSorted is a marker trait for key-value RDDs.
-  * The contract for GroupSorted is as follows:
-  * 1) all rows (key, value pairs) for a given key are consecutive and in the same partition
-  * 2) the values can optionally be ordered per key
+  * GroupSorted is a partitioned key-value RDD where the values for a given key are consecutive and within a single partition.
+  * The keys are sorted within a partition (using a custom hash based Ordering). The values can also be optionally sorted per key.
   */
-trait GroupSorted[K, V] extends RDD[(K, V)] {
-  def valueOrdering: Option[Ordering[V]]
+class GroupSorted[K, V] private (rdd: RDD[(K, V)], private val keyOrdering: Ordering[K], val valueOrdering: Option[Ordering[V]])(
+  implicit kClassTag: ClassTag[K], vClassTag: ClassTag[V]) extends RDD[(K, V)](rdd) {
+  assert(rdd.partitioner.isDefined)
 
-  def mapStreamByKey[W: ClassTag](f: Iterator[V] => TraversableOnce[W]): RDD[(K, W)] =
-    mapPartitions({ iter =>
-      val biter = iter.buffered
+  private def pair = new org.apache.spark.rdd.PairRDDFunctions(this)
 
-      @tailrec
-      def perKeyIterator(biter: BufferedIterator[(K, V)]): (Iterator[(K, W)], (() => Unit)) =
-        if (biter.hasNext) {
-          val k = biter.head._1
+  private def copy[W: ClassTag](rdd1: RDD[(K, W)], valueOrdering1: Option[Ordering[W]]): GroupSorted[K, W] = new GroupSorted(rdd1, keyOrdering, valueOrdering1)
 
-          val viter = new Iterator[V] {
-            override def hasNext: Boolean = biter.hasNext && biter.head._1 == k
+  // overrides for RDD
 
-            override def next(): V = if (hasNext) biter.next()._2 else throw new NoSuchElementException("next on empty iterator")
-          }
+  override def compute(split: Partition, context: TaskContext): Iterator[(K, V)] = firstParent[(K, V)].compute(split, context)
 
-          val kwiter = f(viter).toIterator.map((k, _))
-          val finish = { () => while (viter.hasNext) viter.next() }
+  override def getPartitions: Array[Partition] = firstParent[(K, V)].partitions
 
-          if (kwiter.hasNext)
-            (kwiter, finish)
-          else {
-            // see https://github.com/tresata/spark-sorted/issues/5
-            // if the returned iterator does not have any values next keys will not get processed
-            // the solution is to never return this iterator but move on to the next one
-            finish() // make sure underlying iterator is exhausted
-            perKeyIterator(biter)
-          }
-        } else
-          (Iterator.empty, () => ())
+  override val partitioner: Option[Partitioner] = firstParent[(K, V)].partitioner
 
-      new Iterator[(K, W)] {
-        private var (kwiter, finish) = perKeyIterator(biter)
+  override def filter(f: ((K, V)) => Boolean): GroupSorted[K, V] = copy(super.filter(f), valueOrdering)
 
-        override def hasNext: Boolean = {
-          if (!kwiter.hasNext) {
-            finish() // make sure underlying iterator is exhausted
-            val tmp = perKeyIterator(biter); kwiter = tmp._1; finish = tmp._2 // roll to next iterator
-          }
-          kwiter.hasNext
-        }
+  // overrides for PairRDDFunctions
 
-        override def next: (K, W) = if (hasNext) kwiter.next() else throw new NoSuchElementException("next on empty iterator")
-      }
-    }, true)
+  def flatMapValues[W: ClassTag](f: V => TraversableOnce[W]): GroupSorted[K, W] = copy(pair.flatMapValues(f), None)
+
+  def mapValues[W: ClassTag](f: V => W): GroupSorted[K, W] = copy(pair.mapValues(f), None)
+
+  // GroupSorted specific
+
+  def mapKeyValuesToValues[W: ClassTag](f: ((K, V)) => W): GroupSorted[K, W] = copy(super.mapPartitions(_.map(kv => (kv._1, f(kv))), true), None)
+
+  def mapStreamByKey[W: ClassTag](f: Iterator[V] => TraversableOnce[W]): GroupSorted[K, W] = copy(super.mapPartitions(mapStreamIterator(_)(f), true), None)
 
   private def newWCreate[W: ClassTag](w: W): () => W = {
     // not-so-pretty stuff to serialize and deserialize w so it also works with mutable accumulators
@@ -70,35 +50,80 @@ trait GroupSorted[K, V] extends RDD[(K, V)] {
     () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
   }
 
-  def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = {
+  def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): GroupSorted[K, W] = {
     val wCreate = newWCreate(w)
     mapStreamByKey(iter => Iterator(iter.foldLeft(wCreate())(f)))
   }
 
-  def reduceLeftByKey[W >: V: ClassTag](f: (W, V) => W): RDD[(K, W)] = mapStreamByKey(iter => Iterator(iter.reduceLeft(f)))
+  def reduceLeftByKey[W >: V: ClassTag](f: (W, V) => W): GroupSorted[K, W] = mapStreamByKey(iter => Iterator(iter.reduceLeft(f)))
 
-  def scanLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): RDD[(K, W)] = {
+  def scanLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): GroupSorted[K, W] = {
     val wCreate = newWCreate(w)
     mapStreamByKey(_.scanLeft(wCreate())(f))
+  }
+
+  def mergeJoin[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (Option[V], Option[W])] = {
+    require(keyOrdering == other.keyOrdering, "key ordering must be the same")
+    val partitioner1 = defaultPartitioner(this, other)
+    val left = this.partitioner match {
+      case Some(partitioner1) => this
+      case _ => GroupSorted(this, partitioner1, keyOrdering, None)
+    }
+    val right = other.partitioner match {
+      case Some(partitioner1) => other
+      case _ => GroupSorted(other, partitioner1, keyOrdering, None)
+    }
+    val zipped = left.zipPartitions(right, true)(mergeJoinIterators(_, _, keyOrdering, bufferLeft))
+    copy(zipped, None)
+  }
+
+  def mergeJoinInner[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (V, W)] = {
+    val joined = mergeJoin(other, bufferLeft).mapPartitions({ iter =>
+      iter.collect{ case (k, (Some(v), Some(w))) => (k, (v, w)) }
+    }, true)
+    copy(joined, None)
+  }
+
+  def mergeJoinLeftOuter[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (V, Option[W])] = {
+    val joined = mergeJoin(other).mapPartitions({ iter =>
+      iter.collect{ case (k, (Some(v), maybeW)) => (k, (v, maybeW)) }
+    }, true)
+    copy(joined, None)
+  }
+
+  def mergeJoinRightOuter[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (Option[V], W)] = {
+    val joined = mergeJoin(other, bufferLeft).mapPartitions({ iter =>
+      iter.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }
+    }, true)
+    copy(joined, None)
   }
 }
 
 object GroupSorted {
-  def apply[K, V](rdd: RDD[(K, V)], valueOrdering: Option[Ordering[V]]): GroupSorted[K, V] =
-    apply(rdd, valueOrdering, rdd.partitioner)
+  private def apply[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)], partitioner: Partitioner, keyOrdering: Ordering[K], valueOrdering: Option[Ordering[V]]): GroupSorted[K, V] = {
+    valueOrdering match {
+      case Some(vo) =>
+        val shuffled = new ShuffledRDD[(K, V), Unit, Unit](rdd.map{ kv => (kv, ())}, new KeyPartitioner(partitioner))
+          .setKeyOrdering(Ordering.Tuple2(keyOrdering, vo))
+          .mapPartitions(_.map(kv => (kv._1._1, kv._1._2)), false)
+        val p = partitioner
+        val shuffledWithPartitioner = new RDD[(K, V)](shuffled) {
+          override def compute(split: Partition, context: TaskContext): Iterator[(K, V)] = firstParent[(K, V)].compute(split, context)
 
-  private[sorted] def apply[K, V](rdd: RDD[(K, V)], valueOrdering: Option[Ordering[V]], partitioner: Option[Partitioner]): GroupSorted[K, V] = {
-    val vo = valueOrdering
-    val p = partitioner
-    // there should be an easier way to do this
-    new RDD[(K, V)](rdd) with GroupSorted[K, V] {
-      override def compute(split: Partition, context: TaskContext): Iterator[(K, V)] = firstParent[(K, V)].compute(split, context)
-
-      override def getPartitions: Array[Partition] = firstParent[(K, V)].partitions
-
-      override val partitioner: Option[Partitioner] = p //firstParent[(K, V)].partitioner
-
-      override def valueOrdering: Option[Ordering[V]] = vo
+          override def getPartitions: Array[Partition] = firstParent[(K, V)].partitions
+          
+          override val partitioner: Option[Partitioner] = Some(p)
+        }
+        new GroupSorted(shuffledWithPartitioner, keyOrdering, Some(vo))
+      case None =>
+        val shuffled = new ShuffledRDD[K, V, V](rdd, partitioner)
+          .setKeyOrdering(keyOrdering)
+        new GroupSorted(shuffled, keyOrdering, None)
     }
+  }
+
+  def apply[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)], partitioner: Partitioner, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = {
+    val keyHashOrdering = new HashOrdering(keyOrdering)
+    GroupSorted(rdd, partitioner, keyHashOrdering, valueOrdering)
   }
 }

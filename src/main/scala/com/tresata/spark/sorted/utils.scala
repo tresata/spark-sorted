@@ -2,7 +2,7 @@ package com.tresata.spark.sorted
 
 import org.apache.spark.Partitioner
 
-private class HashOrdering[A](ord: Ordering[A]) extends Ordering[A] {
+private case class HashOrdering[A](ord: Ordering[A]) extends Ordering[A] {
   override def compare(x: A, y: A): Int = {
     val h1 = if (x == null) 0 else x.hashCode()
     val h2 = if (y == null) 0 else y.hashCode()

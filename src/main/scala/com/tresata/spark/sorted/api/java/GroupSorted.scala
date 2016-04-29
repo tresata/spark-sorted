@@ -1,17 +1,15 @@
 package com.tresata.spark.sorted.api.java
 
-import java.util.{ Iterator => JIterator, Comparator }
+import java.lang.{Iterable => JIterable }
+import java.util.{ Comparator, Iterator => JIterator }
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-
-import com.google.common.base.Optional
 
 import org.apache.spark.{ Partitioner, HashPartitioner }
 import org.apache.spark.Partitioner.defaultPartitioner
 import org.apache.spark.api.java.JavaPairRDD
 import org.apache.spark.api.java.function.{ Function => JFunction, Function2 => JFunction2 }
 
-import com.tresata.spark.sorted.PairRDDFunctions._
 import com.tresata.spark.sorted.{ GroupSorted => SGroupSorted }
 
 object GroupSorted {
@@ -21,7 +19,7 @@ object GroupSorted {
 
   private def comparatorToOrdering[T](comparator: Comparator[T]): Ordering[T] = new ComparatorOrdering(comparator)
 
-  def fakeClassTag[T]: ClassTag[T] = ClassTag.AnyRef.asInstanceOf[ClassTag[T]]
+  private def fakeClassTag[T]: ClassTag[T] = ClassTag.AnyRef.asInstanceOf[ClassTag[T]]
 
   private implicit def ordering[K]: Ordering[K] = comparatorToOrdering(NaturalComparator.get[K])
 
@@ -29,52 +27,62 @@ object GroupSorted {
     implicit def kClassTag: ClassTag[K] = javaPairRDD.kClassTag
     implicit def vClassTag: ClassTag[V] = javaPairRDD.vClassTag
     val valueOrdering = Option(valueComparator).map(comparatorToOrdering)
-    javaPairRDD.rdd.groupSort(partitioner, valueOrdering)
+    SGroupSorted(javaPairRDD.rdd, partitioner, valueOrdering)
   }
 }
 
-class GroupSorted[K, V](javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Comparator[V])
-    extends JavaPairRDD[K, V](GroupSorted.groupSort(javaPairRDD, partitioner, valueComparator))(javaPairRDD.kClassTag, javaPairRDD.vClassTag) {
-
-  def this(javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Optional[Comparator[V]]) =
-    this(javaPairRDD, partitioner, valueComparator.orNull)
+class GroupSorted[K, V] private (sGroupSorted: SGroupSorted[K, V]) extends JavaPairRDD[K, V](sGroupSorted)(GroupSorted.fakeClassTag[K], GroupSorted.fakeClassTag[V]) {
+  def this(javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner, valueComparator: Comparator[V]) =
+    this(GroupSorted.groupSort(javaPairRDD, partitioner, valueComparator))
 
   def this(javaPairRDD: JavaPairRDD[K, V], partitioner: Partitioner) =
-    this(javaPairRDD, partitioner, null.asInstanceOf[Comparator[V]])
+    this(GroupSorted.groupSort(javaPairRDD, partitioner, null))
 
   def this(javaPairRDD: JavaPairRDD[K, V], numPartitions: Int, valueComparator: Comparator[V]) =
-    this(javaPairRDD, new HashPartitioner(numPartitions), valueComparator)
+    this(javaPairRDD, if (numPartitions > 0) new HashPartitioner(numPartitions) else defaultPartitioner(javaPairRDD.rdd), valueComparator)
 
   def this(javaPairRDD: JavaPairRDD[K, V], numPartitions: Int) =
-    this(javaPairRDD, new HashPartitioner(numPartitions), null.asInstanceOf[Comparator[V]])
+    this(javaPairRDD, numPartitions, null)
 
   def this(javaPairRDD: JavaPairRDD[K, V], valueComparator: Comparator[V]) =
-    this(javaPairRDD, defaultPartitioner(javaPairRDD.rdd), valueComparator)
+    this(javaPairRDD, -1, valueComparator)
 
-  def this(javaPairRDD: JavaPairRDD[K, V]) = 
-    this(javaPairRDD, defaultPartitioner(javaPairRDD.rdd), null.asInstanceOf[Comparator[V]])
+  def this(javaPairRDD: JavaPairRDD[K, V]) = this(javaPairRDD, -1, null)
 
   import GroupSorted._
 
-  private def sGroupSorted: SGroupSorted[K, V] = rdd.asInstanceOf[SGroupSorted[K, V]]
-
-  def mapStreamByKey[W](f: JFunction[JIterator[V], JIterator[W]]): JavaPairRDD[K, W] = {
+  override def flatMapValues[W](f: JFunction[V, JIterable[W]]): GroupSorted[K, W] = {
     implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
-    new JavaPairRDD[K, W](sGroupSorted.mapStreamByKey(it => f.call(it.asJava).asScala))
+    new GroupSorted[K, W](sGroupSorted.flatMapValues(v => f.call(v).asScala))
   }
 
-  def foldLeftByKey[W](w: W, f: JFunction2[W, V, W]): JavaPairRDD[K, W] = {
+  override def mapValues[W](f: JFunction[V, W]): GroupSorted[K, W] = {
     implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
-    new JavaPairRDD[K, W](sGroupSorted.foldLeftByKey(w)((w, v) => f.call(w, v)))
+    new GroupSorted[K, W](sGroupSorted.mapValues(v => f.call(v)))
   }
 
-  def reduceLeftByKey[W >: V](f: JFunction2[W, V, W]): JavaPairRDD[K, W] = {
+  def mapKeyValuesToValues[W](f: JFunction[Tuple2[K, V], W]): GroupSorted[K, W] = {
     implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
-    new JavaPairRDD[K, W](sGroupSorted.reduceLeftByKey(f.call))
+    new GroupSorted[K, W](sGroupSorted.mapKeyValuesToValues(kv => f.call(kv)))
   }
 
-  def scanLeftByKey[W](w: W, f: JFunction2[W, V, W]): JavaPairRDD[K, W] = {
+  def mapStreamByKey[W](f: JFunction[JIterator[V], JIterator[W]]): GroupSorted[K, W] = {
     implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
-    new JavaPairRDD[K, W](sGroupSorted.scanLeftByKey(w)((w, v) => f.call(w, v)))
+    new GroupSorted[K, W](sGroupSorted.mapStreamByKey(it => f.call(it.asJava).asScala))
+  }
+
+  def foldLeftByKey[W](w: W, f: JFunction2[W, V, W]): GroupSorted[K, W] = {
+    implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
+    new GroupSorted[K, W](sGroupSorted.foldLeftByKey(w)((w, v) => f.call(w, v)))
+  }
+
+  def reduceLeftByKey[W >: V](f: JFunction2[W, V, W]): GroupSorted[K, W] = {
+    implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
+    new GroupSorted[K, W](sGroupSorted.reduceLeftByKey(f.call))
+  }
+
+  def scanLeftByKey[W](w: W, f: JFunction2[W, V, W]): GroupSorted[K, W] = {
+    implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
+    new GroupSorted[K, W](sGroupSorted.scanLeftByKey(w)((w, v) => f.call(w, v)))
   }
 }
