@@ -11,7 +11,7 @@ import org.apache.spark.rdd.{ RDD, ShuffledRDD }
   * GroupSorted is a partitioned key-value RDD where the values for a given key are consecutive and within a single partition.
   * The keys are sorted within a partition (using a custom hash based Ordering). The values can also be optionally sorted per key.
   */
-class GroupSorted[K, V] private (rdd: RDD[(K, V)], private val keyOrdering: Ordering[K], val valueOrdering: Option[Ordering[V]])(
+class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K], val valueOrdering: Option[Ordering[V]])(
   implicit kClassTag: ClassTag[K], vClassTag: ClassTag[V]) extends RDD[(K, V)](rdd) {
   assert(rdd.partitioner.isDefined)
 
@@ -97,6 +97,9 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], private val keyOrdering: Orde
     }, true)
     copy(joined, None)
   }
+
+  /** Dangerous, do not use unless you know exactly what you are doing */
+  //def preservesGroupsorting(f: RDD[(K, V)] => RDD[(K, W)]): GroupSorted[K, W] = copy(f(this), new GroupSorted(f(this) 
 }
 
 object GroupSorted {
