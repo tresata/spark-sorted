@@ -220,6 +220,14 @@ class GroupSortedSpec extends FunSpec with Checkers {
       assert(x.mergeJoinInner(y).collect.toSet === Set(("10", ("10", "10")), ("11", ("11", "11"))))
     }
 
+    it("should merge join for test dataset with more complex implicit orderings") {
+      pending
+      // currently broken due to failing comparison of orderings
+      //val x = sc.parallelize((1 to 11)).map(i => ((i, i), i)).groupSort(1)
+      //val y = sc.parallelize((10 to 11)).map(i => ((i, i), i)).groupSort(1)
+      //assert(x.mergeJoinInner(y).collect.toSet === Set(((10, 10), 10), ((11, 11), 11))) 
+    }
+
     it("should merge join for randomly generated datasets") {
       val gen = Gen.containerOf[List, Int](Gen.choose(1, 100)).map(_.map(_.toString))
       val gen1 = for (l1 <- gen; l2 <- gen; l3 <- gen; l4 <- gen) yield (l1.zip(l2), l3.zip(l4))
