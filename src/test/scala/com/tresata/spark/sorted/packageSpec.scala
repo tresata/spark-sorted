@@ -58,5 +58,9 @@ class packageSpec extends FunSpec with Checkers {
         result == check
       })
     }
+
+    it("should fail to merge-join 2 incorrectly sorted key-value iterators") {
+      intercept[AssertionError](mergeJoinIterators(List((1, "a"), (2, "b"), (3, "c")).iterator, List((1, "a"), (3, "b"), (2, "c")).iterator, false).toList)
+    }
   }
 }

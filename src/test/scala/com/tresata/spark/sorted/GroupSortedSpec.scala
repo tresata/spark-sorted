@@ -221,11 +221,9 @@ class GroupSortedSpec extends FunSpec with Checkers {
     }
 
     it("should merge join for test dataset with more complex implicit orderings") {
-      pending
-      // currently broken due to failing comparison of orderings
-      //val x = sc.parallelize((1 to 11)).map(i => ((i, i), i)).groupSort(1)
-      //val y = sc.parallelize((10 to 11)).map(i => ((i, i), i)).groupSort(1)
-      //assert(x.mergeJoinInner(y).collect.toSet === Set(((10, 10), 10), ((11, 11), 11))) 
+      val x = sc.parallelize((1 to 11)).map(i => ((i, i), i)).groupSort(1)
+      val y = sc.parallelize((10 to 11)).map(i => ((i, i), i)).groupSort(1)
+      assert(x.mergeJoinInner(y).collect.toSet === Set(((10, 10), (10, 10)), ((11, 11), (11, 11)))) 
     }
 
     it("should merge join for randomly generated datasets") {

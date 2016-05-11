@@ -72,6 +72,10 @@ object `package` {
       private val bcit1 = collapseRepeats(it1).buffered
       private val bcit2 = collapseRepeats(it2).buffered
 
+      // trust but verify: we cannot be sure that correct ordering was used for the datasets so we check it
+      private var prevK1: K = _
+      private var prevK2: K = _
+
       def hasNext: Boolean = bcit1.hasNext || bcit2.hasNext
 
       def next: (K, Option[Iterator[V1]], Option[Iterator[V2]]) =
@@ -79,21 +83,33 @@ object `package` {
           val comp = ord.compare(bcit1.head._1, bcit2.head._1)
           if (comp < 0) {
             val (k1, itv1) = bcit1.next
+            assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
+            prevK1 = k1
             (k1, Some(itv1), None)
           } else if (comp > 0) {
             val (k2, itv2) = bcit2.next
+            assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
+            prevK2 = k2
             (k2, None, Some(itv2))
           } else {
             val (k1, itv1) = bcit1.next
+            assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
+            prevK1 = k1
             val (k2, itv2) = bcit2.next
+            assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
+            prevK2 = k2
             assert(k1 == k2)
             (k1, Some(itv1), Some(itv2))
           }
         } else if (bcit1.hasNext) {
           val (k1, itv1) = bcit1.next
+          assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
+          prevK1 = k1
           (k1, Some(itv1), None)
         } else {
           val (k2, itv2) = bcit2.next
+          assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
+          prevK2 = k2
           (k2, None, Some(itv2))
         }
     }.flatMap{

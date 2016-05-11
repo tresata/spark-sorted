@@ -66,7 +66,7 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
     // this is kind of broken because Scala's implicit Orderings don't have proper equals/hashCode
     // it seems to work for primitives and strings but not for tuples
     // could use org.apache.commons.lang.builder.EqualsBuilder.reflectionEquals but that might throw a SecurityException
-    require(keyOrdering == other.keyOrdering, "key ordering must be the same")
+    //require(keyOrdering == other.keyOrdering, "key ordering must be the same")
 
     val partitioner1 = defaultPartitioner(this, other)
     val left = this.partitioner match {
