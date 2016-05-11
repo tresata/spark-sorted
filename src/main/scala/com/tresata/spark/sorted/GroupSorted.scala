@@ -63,7 +63,11 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
   }
 
   def mergeJoin[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (Option[V], Option[W])] = {
+    // this is kind of broken because Scala's implicit Orderings don't have proper equals/hashCode
+    // it seems to work for primitives and strings but not for tuples
+    // could use org.apache.commons.lang.builder.EqualsBuilder.reflectionEquals but that might throw a SecurityException
     require(keyOrdering == other.keyOrdering, "key ordering must be the same")
+
     val partitioner1 = defaultPartitioner(this, other)
     val left = this.partitioner match {
       case Some(partitioner1) => this
@@ -98,8 +102,8 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
     copy(joined, None)
   }
 
-  /** Dangerous, do not use unless you know exactly what you are doing */
-  //def preservesGroupsorting(f: RDD[(K, V)] => RDD[(K, W)]): GroupSorted[K, W] = copy(f(this), new GroupSorted(f(this) 
+  ///** Dangerous, do not use unless you know exactly what you are doing */
+  //def preservesGroupSorting(f: RDD[(K, V)] => RDD[(K, W)]): GroupSorted[K, W] = copy(f(this), new GroupSorted(f(this) 
 }
 
 object GroupSorted {
