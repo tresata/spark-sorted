@@ -107,7 +107,7 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
 }
 
 object GroupSorted {
-  private def apply[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)], partitioner: Partitioner, keyOrdering: Ordering[K], valueOrdering: Option[Ordering[V]]): GroupSorted[K, V] = {
+  private[sorted] def apply[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)], partitioner: Partitioner, keyOrdering: Ordering[K], valueOrdering: Option[Ordering[V]]): GroupSorted[K, V] = {
     valueOrdering match {
       case Some(vo) =>
         val shuffled = new ShuffledRDD[(K, V), Unit, Unit](rdd.map{ kv => (kv, ())}, new KeyPartitioner(partitioner))

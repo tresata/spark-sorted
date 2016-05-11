@@ -27,4 +27,6 @@ class PairRDDFunctions[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)]) extends Seria
   def groupSort(valueOrdering: Ordering[V])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = groupSort(-1, Some(valueOrdering))
 
   def groupSort()(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = groupSort(-1, None)
+
+  def groupSort(other: GroupSorted[K, _]): GroupSorted[K, V] = GroupSorted(rdd, other.partitioner.get, other.keyOrdering, None)
 }
