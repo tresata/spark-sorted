@@ -55,12 +55,27 @@ class packageSpec extends FunSpec with Checkers {
           }
         }
         val result = mergeJoinIterators(aSorted.iterator, bSorted.iterator, bufferLeft).toList
-        result == check
+        result === check
       })
     }
 
     it("should fail to merge-join 2 incorrectly sorted key-value iterators") {
       intercept[AssertionError](mergeJoinIterators(List((1, "a"), (2, "b"), (3, "c")).iterator, List((1, "a"), (3, "b"), (2, "c")).iterator, false).toList)
+    }
+  }
+
+  describe("mergeUnionIterators") {
+    it("should merge union 2 sorted iterators") {
+      val gen = Gen.containerOf[List, Int](Gen.choose(1, 100))
+      val gen2 = for (l1 <- gen; l2 <- gen) yield (l1, l2)
+
+      check(Prop.forAll(gen2){ case (a: List[Int], b: List[Int]) =>
+        val aSorted = a.sorted
+        val bSorted = b.sorted
+        val check = (a ++ b).sorted
+        val result = mergeUnionIterators(aSorted.iterator, bSorted.iterator, implicitly[Ordering[Int]]).toList
+        result === check
+      })
     }
   }
 }

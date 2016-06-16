@@ -63,7 +63,7 @@ object `package` {
           val k = buf.head._1
           val vit = new Iterator[V] {
             def hasNext: Boolean = buf.hasNext && buf.head._1 == k
-            def next: V = buf.next._2
+            def next: V = buf.next()._2
           }
           (k, vit)
         }
@@ -82,32 +82,32 @@ object `package` {
         if (bcit1.hasNext && bcit2.hasNext) {
           val comp = ord.compare(bcit1.head._1, bcit2.head._1)
           if (comp < 0) {
-            val (k1, itv1) = bcit1.next
+            val (k1, itv1) = bcit1.next()
             assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
             prevK1 = k1
             (k1, Some(itv1), None)
           } else if (comp > 0) {
-            val (k2, itv2) = bcit2.next
+            val (k2, itv2) = bcit2.next()
             assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
             prevK2 = k2
             (k2, None, Some(itv2))
           } else {
-            val (k1, itv1) = bcit1.next
+            val (k1, itv1) = bcit1.next()
             assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
             prevK1 = k1
-            val (k2, itv2) = bcit2.next
+            val (k2, itv2) = bcit2.next()
             assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
             prevK2 = k2
             assert(k1 == k2)
             (k1, Some(itv1), Some(itv2))
           }
         } else if (bcit1.hasNext) {
-          val (k1, itv1) = bcit1.next
+          val (k1, itv1) = bcit1.next()
           assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
           prevK1 = k1
           (k1, Some(itv1), None)
         } else {
-          val (k2, itv2) = bcit2.next
+          val (k2, itv2) = bcit2.next()
           assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
           prevK2 = k2
           (k2, None, Some(itv2))
@@ -135,4 +135,34 @@ object `package` {
 
   private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], bufferLeft: Boolean)(
     implicit ord: Ordering[K], ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] = mergeJoinIterators(it1, it2, ord, bufferLeft)
+
+  // assumes both iterators are sorted
+  // is safe with a partial ordering
+  private[sorted] def mergeUnionIterators[X](it1: Iterator[X], it2: Iterator[X], ord: Ordering[X]): Iterator[X] = new Iterator[X] {
+    private val bit1 = it1.buffered
+    private val bit2 = it2.buffered
+
+    // trust but verify: we cannot be sure that correct ordering was used for the datasets so we check it
+    private var prev1: X = _
+    private var prev2: X = _
+
+    def hasNext: Boolean = bit1.hasNext || bit2.hasNext
+
+    def next(): X = {
+      val hasNext1 = bit1.hasNext
+      val hasNext2 = bit2.hasNext
+      val negComp = hasNext1 && hasNext2 && ord.compare(bit1.head, bit2.head) <= 0
+      if (hasNext1 && (!hasNext2 || negComp)) {
+        val x1 = bit1.next()
+        assert(prev1 == null || ord.compare(prev1, x1) <= 0)
+        prev1 = x1
+        x1
+      } else {
+        val x2 = bit2.next()
+        assert(prev2 == null || ord.compare(prev2, x2) <= 0)
+        prev2 = x2
+        x2
+      }
+    }
+  }
 }

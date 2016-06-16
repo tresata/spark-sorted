@@ -262,5 +262,22 @@ class GroupSortedSpec extends FunSpec with Checkers {
         resultRightOuter.collect.toList.sorted === check.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }.sorted
       })
     }
+
+    it("should merge union randomly generated datasets") {
+      val gen = Gen.containerOf[List, Int](Gen.choose(1, 100)).map(_.map(_.toString))
+      val gen1 = for (l1 <- gen; l2 <- gen; l3 <- gen; l4 <- gen; b1 <- Arbitrary.arbitrary[Boolean]; b2 <- Arbitrary.arbitrary[Boolean]) yield (l1.zip(l2), l3.zip(l4), b1, b2)
+
+      check(Prop.forAll(gen1){ case (a: List[(String, String)], b: List[(String, String)], sortValues1, sortValues2) =>
+        val vo = Some(Ordering.String)
+        val left = sc.parallelize(a).groupSort(2, if (sortValues1) vo else None)
+        val right = sc.parallelize(b).groupSort(2, if (sortValues2) vo else None)
+        val result = left.mergeUnion(right)
+        val check = sc.parallelize(a ++ b).groupSort(2, None)
+
+        result.valueOrdering === None &&
+          check.glom.collect.map(_.toList.map(_._1)).toSet === result.glom.collect.map(_.toList.map(_._1)).toSet &&
+          check.collect.toList.sorted == result.collect.toList.sorted
+      })
+    }
   }
 }

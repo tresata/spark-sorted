@@ -102,6 +102,11 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
     copy(joined, None)
   }
 
+  def mergeUnion(other: GroupSorted[K, V]): GroupSorted[K, V] = {
+    val keyValueOrdering = Ordering.by{ kv: (K, V) => kv._1 }(keyOrdering)
+    copy(this.zipPartitions(other, true)(mergeUnionIterators(_, _, keyValueOrdering)), None)
+  }
+
   ///** Dangerous, do not use unless you know exactly what you are doing */
   //def preservesGroupSorting(f: RDD[(K, V)] => RDD[(K, W)]): GroupSorted[K, W] = copy(f(this), new GroupSorted(f(this) 
 }
