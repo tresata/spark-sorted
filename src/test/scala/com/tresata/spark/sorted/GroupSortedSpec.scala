@@ -2,7 +2,6 @@ package com.tresata.spark.sorted
 
 import org.scalatest.FunSpec
 import org.scalatest.prop.Checkers
-import org.scalacheck.{ Prop, Gen, Arbitrary }
 
 case class TimeValue(time: Int, value: Double)
 
@@ -33,13 +32,11 @@ class GroupSortedSpec extends FunSpec with Checkers {
   describe("PairRDDFunctions") {
     it("should produce correct group-sorted rdds") {
       // for strings the sorting by hash code is not the same as the natural ordering, so prefer strings for testing
-      val gen = Arbitrary.arbitrary[(List[(String, String)], Boolean)]
-
-      check(Prop.forAll(gen){ case (l, sortValues) =>
+      check{ (l: List[(String, String)], sortValues: Boolean) =>
         val rdd = sc.parallelize(l)
           .groupSort(2, if (sortValues) Some(Ordering.String) else None)
         validGroupSorted(rdd)
-      })
+      }
     }
   }
 
@@ -136,9 +133,7 @@ class GroupSortedSpec extends FunSpec with Checkers {
     }
 
     it("should mapStreamByKey with value ordering for randomly generated datasets and take operations") {
-      val gen = Arbitrary.arbitrary[List[(Int, Int)]]
-
-      check(Prop.forAll(gen){ l =>
+      check{ (l: List[(Int, Int)]) =>
         val nTake: Int => Int = i => i % 10
 
         val rdd = sc.parallelize(l)
@@ -153,13 +148,11 @@ class GroupSortedSpec extends FunSpec with Checkers {
           .flatMap{ case (k, vs) => vs.take(nTake(vs.head)).map((k, _)) }
           .toSet
         validGroupSorted(rdd) && check === output
-      })
+      }
     }
 
     it("should reduceLeftByKey without value ordering for randomly generated datasets") {
-      val gen = Arbitrary.arbitrary[List[(Int, Int)]]
-
-      check(Prop.forAll(gen){ l =>
+      check{ (l: List[(Int, Int)]) =>
         val rdd = sc.parallelize(l)
           .groupSort(2)
           .reduceLeftByKey(math.min)
@@ -169,7 +162,7 @@ class GroupSortedSpec extends FunSpec with Checkers {
           .map{ case (k, vs) => (k, vs.min) }
           .toSet
         validGroupSorted(rdd) && check === output
-      })
+      }
     }
 
     it("should chain operations") {
@@ -200,10 +193,7 @@ class GroupSortedSpec extends FunSpec with Checkers {
     }
 
     it("should mergeJoin for randomly generated datasets") {
-      val gen = Gen.containerOf[List, Int](Gen.choose(1, 100)).map(_.map(_.toString))
-      val gen1 = for (l1 <- gen; l2 <- gen; l3 <- gen; l4 <- gen) yield (l1.zip(l2), l3.zip(l4))
-
-      check(Prop.forAll(gen1){ case (a: List[(String, String)], b: List[(String, String)]) =>
+      check{ (a: List[(String, String)], b: List[(String, String)], sortValuesA: Boolean, sortValuesB: Boolean) =>
         val check = {
           val aMap = a.groupBy(_._1).mapValues(_.map(_._2))
           val bMap = b.groupBy(_._1).mapValues(_.map(_._2))
@@ -221,8 +211,8 @@ class GroupSortedSpec extends FunSpec with Checkers {
           }
         }
 
-        val left = sc.parallelize(a).groupSort(2, Ordering.String)
-        val right = sc.parallelize(b).groupSort(2, Ordering.String)
+        val left = sc.parallelize(a).groupSort(2, if (sortValuesA) Some(Ordering.String) else None)
+        val right = sc.parallelize(b).groupSort(2, if (sortValuesB) Some(Ordering.String) else None)
 
         val resultFullOuter = left.mergeJoin(right)
         val resultInner = left.mergeJoinInner(right)
@@ -237,22 +227,18 @@ class GroupSortedSpec extends FunSpec with Checkers {
           resultLeftOuter.collect.toList.sorted === check.collect{ case (k, (Some(v), maybeW)) => (k, (v, maybeW)) }.sorted &&
           validGroupSorted(resultRightOuter) &&
           resultRightOuter.collect.toList.sorted === check.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }.sorted
-      })
+      }
     }
 
     it("should mergeUnion randomly generated datasets") {
-      val gen = Gen.containerOf[List, Int](Gen.choose(1, 100)).map(_.map(_.toString))
-      val gen1 = for (l1 <- gen; l2 <- gen; l3 <- gen; l4 <- gen; b1 <- Arbitrary.arbitrary[Boolean]; b2 <- Arbitrary.arbitrary[Boolean]) yield (l1.zip(l2), l3.zip(l4), b1, b2)
-
-      check(Prop.forAll(gen1){ case (a: List[(String, String)], b: List[(String, String)], sortValues1, sortValues2) =>
-        val vo = Some(Ordering.String)
-        val left = sc.parallelize(a).groupSort(2, if (sortValues1) vo else None)
-        val right = sc.parallelize(b).groupSort(2, if (sortValues2) vo else None)
+      check{ (a: List[(String, String)], b: List[(String, String)], sortValuesA: Boolean, sortValuesB: Boolean) =>
+        val left = sc.parallelize(a).groupSort(2, if (sortValuesA) Some(Ordering.String) else None)
+        val right = sc.parallelize(b).groupSort(2, if (sortValuesB) Some(Ordering.String) else None)
         val result = left.mergeUnion(right)
         val check = sc.parallelize(a ++ b).groupSort(2, None)
 
         validGroupSorted(result) && check.collect.toList.sorted === result.collect.toList.sorted
-      })
+      }
     }
   }
 }
