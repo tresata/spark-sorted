@@ -3,7 +3,7 @@ package com.tresata.spark.sorted
 import java.nio.ByteBuffer
 import scala.reflect.ClassTag
 
-import org.apache.spark.{ SparkEnv, Partition, Partitioner, TaskContext }
+import org.apache.spark.{ Aggregator, SparkEnv, Partition, Partitioner, TaskContext }
 import org.apache.spark.Partitioner.defaultPartitioner
 import org.apache.spark.rdd.{ RDD, ShuffledRDD }
 
@@ -137,5 +137,16 @@ object GroupSorted {
   def apply[K: ClassTag, V: ClassTag](rdd: RDD[(K, V)], partitioner: Partitioner, valueOrdering: Option[Ordering[V]])(implicit keyOrdering: Ordering[K]): GroupSorted[K, V] = {
     val keyHashOrdering = new HashOrdering(keyOrdering)
     GroupSorted(rdd, partitioner, keyHashOrdering, valueOrdering)
+  }
+
+  def apply[K: ClassTag, V: ClassTag, C: ClassTag](rdd: RDD[(K, V)], partitioner: Partitioner, createCombiner: V => C, mergeValue: (C, V) => C, mergeCombiners: (C, C) => C)(
+    implicit keyOrdering: Ordering[K]): GroupSorted[K, C] = {
+    val keyHashOrdering = new HashOrdering(keyOrdering)
+    val aggregator = new Aggregator[K, V, C](createCombiner, mergeValue, mergeCombiners)
+    val shuffled = new ShuffledRDD[K, V, C](rdd, partitioner)
+      .setKeyOrdering(keyHashOrdering)
+      .setAggregator(aggregator)
+      .setMapSideCombine(true)
+    new GroupSorted(shuffled, keyHashOrdering, None)
   }
 }

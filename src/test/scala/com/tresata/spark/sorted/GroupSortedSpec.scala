@@ -35,7 +35,17 @@ class GroupSortedSpec extends FunSpec with Checkers {
       check{ (l: List[(String, String)], sortValues: Boolean) =>
         val rdd = sc.parallelize(l)
           .groupSort(2, if (sortValues) Some(Ordering.String) else None)
-        validGroupSorted(rdd)
+        validGroupSorted(rdd) && rdd.collect.toList.sorted == l.sorted
+      }
+    }
+
+    it("should produce correct group-sorted rdds with aggregator") {
+      // for strings the sorting by hash code is not the same as the natural ordering, so prefer strings for testing
+      check{ (l: List[(String, Int)]) =>
+        val rdd = sc.parallelize(l)
+          .groupSort(2, { (v1: Int, v2: Int) => v1 + v2 })
+        validGroupSorted(rdd) &&
+        rdd.collect.toList.sorted == l.groupBy(_._1).mapValues(_.map(_._2).sum).toList.sorted
       }
     }
   }
