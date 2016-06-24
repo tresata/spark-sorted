@@ -2,6 +2,7 @@ package com.tresata.spark.sorted
 
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
+import scala.collection.mutable.ArrayBuilder
 
 object `package` {
   // assumes all values for a given key are consecutive
@@ -51,87 +52,58 @@ object `package` {
 
   // assumes both iterators are sorted by key with repeat keys allowed
   // key cannot be null
-  private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K], bufferLeft: Boolean)(
-    implicit ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] =
-    new Iterator[(K, Option[Iterator[V1]], Option[Iterator[V2]])] {
-      private def collapseRepeats[K, V](it: Iterator[(K, V)]): Iterator[(K, Iterator[V])] = new Iterator[(K, Iterator[V])] {
-        private val buf = it.buffered
+  private def mergeJoinIterators[K, V1, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K]): Iterator[(K, (Option[V1], Option[V2]))] =
+    new Iterator[(Option[(K, V1)], Option[(K, Array[V2])])] {
+      private val bit1 = it1.buffered
+      private val bit2 = it2.buffered
 
-        def hasNext: Boolean = buf.hasNext
-
-        def next: (K, Iterator[V]) = {
-          val k = buf.head._1
-          val vit = new Iterator[V] {
-            def hasNext: Boolean = buf.hasNext && buf.head._1 == k
-            def next: V = buf.next()._2
-          }
-          (k, vit)
-        }
-      }
-  
-      private val bcit1 = collapseRepeats(it1).buffered
-      private val bcit2 = collapseRepeats(it2).buffered
-
-      // trust but verify: we cannot be sure that correct ordering was used for the datasets so we check it
       private var prevK1: K = _
       private var prevK2: K = _
+      private val v2sBuilder = ArrayBuilder.make[V2]
 
-      def hasNext: Boolean = bcit1.hasNext || bcit2.hasNext
+      def hasNext: Boolean = bit1.hasNext || bit2.hasNext
 
-      def next: (K, Option[Iterator[V1]], Option[Iterator[V2]]) =
-        if (bcit1.hasNext && bcit2.hasNext) {
-          val comp = ord.compare(bcit1.head._1, bcit2.head._1)
-          if (comp < 0) {
-            val (k1, itv1) = bcit1.next()
-            assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
-            prevK1 = k1
-            (k1, Some(itv1), None)
-          } else if (comp > 0) {
-            val (k2, itv2) = bcit2.next()
-            assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
-            prevK2 = k2
-            (k2, None, Some(itv2))
-          } else {
-            val (k1, itv1) = bcit1.next()
-            assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
-            prevK1 = k1
-            val (k2, itv2) = bcit2.next()
-            assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
-            prevK2 = k2
-            assert(k1 == k2)
-            (k1, Some(itv1), Some(itv2))
-          }
-        } else if (bcit1.hasNext) {
-          val (k1, itv1) = bcit1.next()
-          assert(prevK1 == null || ord.compare(prevK1, k1) < 0)
+      def next: (Option[(K, V1)], Option[(K, Array[V2])]) = {
+        val hasNext1 = bit1.hasNext
+        val hasNext2 = bit2.hasNext
+        val comp = if (hasNext1 && hasNext2) ord.compare(bit1.head._1, bit2.head._1) else 0
+        val maybeK1V1 = if (hasNext1 && (!hasNext2 || comp <= 0)) {
+          val (k1, v1) = bit1.next()
+          assert(prevK1 == null || ord.compare(prevK1, k1) <= 0) // repeat keys are ok
           prevK1 = k1
-          (k1, Some(itv1), None)
-        } else {
-          val (k2, itv2) = bcit2.next()
-          assert(prevK2 == null || ord.compare(prevK2, k2) < 0)
+          Some((k1, v1))
+        } else None
+        val maybeK2Vs2 = if (prevK1 == prevK2 && maybeK1V1.map(_._1 == prevK1).getOrElse(false)) {
+          Some((prevK2, v2sBuilder.result))
+        } else if (hasNext2 && (!hasNext1 || comp >= 0)) {
+          val k2 = bit2.head._1
+          assert(prevK2 == null || ord.compare(prevK2, k2) < 0) // repeat keys are not ok
           prevK2 = k2
-          (k2, None, Some(itv2))
-        }
-    }.flatMap{
-      case (k, Some(itv1), None) =>
-        itv1.map(v1 => (k, (Some(v1), None)))
-      case (k, None, Some(itv2)) =>
-        itv2.map(v2 => (k, (None, Some(v2))))
-      case (k, Some(itv1), Some(itv2)) =>
-        if (bufferLeft) {
-          val av1 = itv1.toArray // all values on left side must fit in memory
-          itv2.flatMap{ v2 =>
-            av1.map(v1 => (k, (Some(v1), Some(v2))))
-          }
-        } else {
-          val av2 = itv2.toArray // all values on right side must fit in memory
-          itv1.flatMap{ v1 =>
-            av2.map(v2 => (k, (Some(v1), Some(v2))))
-          }
-        }
-      case (k, None, None) =>
-        sys.error("this should never happen")
+          v2sBuilder.clear()
+          while (bit2.hasNext && bit2.head._1 == k2) // for given key all values on right side must fit in memory
+            v2sBuilder += bit2.next()._2
+          Some((k2, v2sBuilder.result))
+        } else None
+        (maybeK1V1, maybeK2Vs2)
+      }
+    }.flatMap {
+      case (Some((k1, v1)), Some((k2, v2s))) =>
+        assert(k1 == k2)
+        v2s.map(v2 => (k1, (Some(v1), Some(v2))))
+      case (Some((k1, v1)), None) =>
+        Iterator.single((k1, (Some(v1), None)))
+      case (None, Some((k2, v2s))) =>
+        v2s.map(v2 => (k2, (None, Some(v2))))
+      case (None, None) =>
+        throw new NoSuchElementException("next on empty iterator")
     }
+
+  private[sorted] def mergeJoinIterators[K, V1: ClassTag, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K], bufferLeft: Boolean):
+      Iterator[(K, (Option[V1], Option[V2]))] =
+    if (bufferLeft)
+      mergeJoinIterators(it2, it1, ord).map(kv => (kv._1, kv._2.swap))
+    else
+      mergeJoinIterators(it1, it2, ord)
 
   private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], bufferLeft: Boolean)(
     implicit ord: Ordering[K], ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] = mergeJoinIterators(it1, it2, ord, bufferLeft)
