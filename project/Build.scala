@@ -17,7 +17,7 @@ object ProjectBuild extends Build {
       scalacOptions ++= Seq("-unchecked", "-deprecation", "-target:jvm-1.7", "-feature", "-language:_"),
       // sbt-spark-package settings
       spName := "tresata/spark-sorted",
-      sparkVersion := "1.6.1",
+      sparkVersion := "1.6.2",
       sparkComponents += "core",
       spIncludeMaven := true,
       spAppendScalaVersion := true,
