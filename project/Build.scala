@@ -10,7 +10,7 @@ object ProjectBuild extends Build {
     Seq(
       organization := "com.tresata",
       name := "spark-sorted",
-      version := "0.8.0",
+      version := "0.9.0-SNAPSHOT",
       scalaVersion := "2.11.7",
       crossScalaVersions := Seq("2.10.5", "2.11.7"),
       javacOptions ++= Seq("-Xlint:unchecked", "-source", "1.7", "-target", "1.7"),
