@@ -6,7 +6,8 @@ import scala.collection.mutable.ArrayBuilder
 
 object `package` {
   // assumes all values for a given key are consecutive
-  private[sorted] def mapStreamIterator[K, V, W](iter: Iterator[(K, V)])(f: Iterator[V] => TraversableOnce[W]): Iterator[(K, W)] = {
+  private[sorted] def mapStreamIteratorWithContext[K, V, W, C](iter: Iterator[(K, V)])(c: () => C, f: (C, Iterator[V]) => TraversableOnce[W]): Iterator[(K, W)] = {
+    val context = c()
     val biter = iter.buffered
 
     @tailrec
@@ -20,7 +21,7 @@ object `package` {
           override def next(): V = if (hasNext) biter.next()._2 else throw new NoSuchElementException("next on empty iterator")
         }
 
-        val kwiter = f(viter).toIterator.map((k, _))
+        val kwiter = f(context, viter).toIterator.map((k, _))
         val finish = { () => while (viter.hasNext) viter.next() }
 
         if (kwiter.hasNext)
@@ -49,6 +50,9 @@ object `package` {
       override def next: (K, W) = if (hasNext) kwiter.next() else throw new NoSuchElementException("next on empty iterator")
     }
   }
+
+  private[sorted] def mapStreamIterator[K, V, W](iter: Iterator[(K, V)])(f: Iterator[V] => TraversableOnce[W]): Iterator[(K, W)] =
+    mapStreamIteratorWithContext[K, V, W, Unit](iter)(() => (), (_: Unit, it: Iterator[V]) => f(it))
 
   // assumes both iterators are sorted by key with repeat keys allowed
   // key cannot be null
