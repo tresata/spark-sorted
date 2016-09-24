@@ -1,5 +1,6 @@
 package com.tresata.spark.sorted
 
+import scala.collection.mutable.ArrayBuffer
 import org.scalatest.FunSpec
 import org.scalatest.prop.Checkers
 
@@ -64,6 +65,18 @@ class GroupSortedSpec extends FunSpec with Checkers {
         val buffered = iter.buffered
         val max = buffered.head
         buffered.map(_ => max)
+      }
+      assert(validGroupSorted(withMax))
+      assert(withMax.collect.toList.groupBy(identity).mapValues(_.size) ===  Map(("a", 3) -> 2, ("b", 10) -> 2, ("c", 5) -> 1))
+    }
+
+    it("should mapStreamByKey with a mutable context and value ordering") {
+      val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
+      val withMax = rdd.groupSort(2, Ordering.Int.reverse).mapStreamByKey{ () => ArrayBuffer[Int]() }{ (buffer, iter) =>
+        buffer.clear // i hope this preserves the underlying array otherwise there is no point really in re-using it
+        buffer ++= iter
+        val max = buffer.head
+        buffer.map(_ => max)
       }
       assert(validGroupSorted(withMax))
       assert(withMax.collect.toList.groupBy(identity).mapValues(_.size) ===  Map(("a", 3) -> 2, ("b", 10) -> 2, ("c", 5) -> 1))

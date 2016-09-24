@@ -40,9 +40,8 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
   def mapKeyValuesToValues[W: ClassTag](f: ((K, V)) => W): GroupSorted[K, W] = copy(super.mapPartitions(_.map(kv => (kv._1, f(kv))), true), None)
 
   def mapStreamByKey[W: ClassTag](f: Iterator[V] => TraversableOnce[W]): GroupSorted[K, W] = copy(super.mapPartitions(mapStreamIterator(_)(f), true), None)
-
-
-  def mapStreamByKey[W: ClassTag, C](c: () => C, f: (C, Iterator[V]) => TraversableOnce[W]): GroupSorted[K, W] = copy(super.mapPartitions(mapStreamIteratorWithContext(_)(c, f), true), None)
+  
+  def mapStreamByKey[W: ClassTag, C](c: () => C)(f: (C, Iterator[V]) => TraversableOnce[W]): GroupSorted[K, W] = copy(super.mapPartitions(mapStreamIteratorWithContext(_)(c, f), true), None)
 
   private def newWCreate[W: ClassTag](w: W): () => W = {
     // not-so-pretty stuff to serialize and deserialize w so it also works with mutable accumulators
