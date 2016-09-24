@@ -6,9 +6,7 @@ import org.scalatest.prop.Checkers
 
 case class TimeValue(time: Int, value: Double)
 
-class GroupSortedSpec extends FunSpec with Checkers {
-  lazy val sc = SparkSuite.sc
-
+class GroupSortedSpec extends FunSpec with Checkers with SparkSuite {
   import PairRDDFunctions._
 
   def validGroupSorted[K, V](x: GroupSorted[K, V]): Boolean = {
@@ -36,7 +34,8 @@ class GroupSortedSpec extends FunSpec with Checkers {
       check{ (l: List[(String, String)], sortValues: Boolean) =>
         val rdd = sc.parallelize(l)
           .groupSort(2, if (sortValues) Some(Ordering.String) else None)
-        validGroupSorted(rdd) && rdd.collect.toList.sorted == l.sorted
+          .cache
+        validGroupSorted(rdd) && rdd === l
       }
     }
 
@@ -45,8 +44,8 @@ class GroupSortedSpec extends FunSpec with Checkers {
       check{ (l: List[(String, Int)]) =>
         val rdd = sc.parallelize(l)
           .groupSort(2, { (v1: Int, v2: Int) => v1 + v2 })
-        validGroupSorted(rdd) &&
-        rdd.collect.toList.sorted == l.groupBy(_._1).mapValues(_.map(_._2).sum).toList.sorted
+          .cache
+        validGroupSorted(rdd) && rdd === l.groupBy(_._1).mapValues(_.map(_._2).sum)
       }
     }
   }
@@ -54,39 +53,51 @@ class GroupSortedSpec extends FunSpec with Checkers {
   describe("GroupSorted") {
     it("should mapStreamByKey without value ordering") {
       val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
-      val sets = rdd.groupSort(2).mapStreamByKey(iter => Iterator(iter.toSet)) // very contrived...
+      val sets = rdd
+        .groupSort(2)
+        .mapStreamByKey(iter => Iterator(iter.toSet)) // very contrived...
+        .cache
       assert(validGroupSorted(sets))
-      assert(sets.collect.toMap ===  Map("a" -> Set(1, 3), "b" -> Set(1, 10), "c" -> Set(5)))
+      assert(sets === Seq("a" -> Set(1, 3), "b" -> Set(1, 10), "c" -> Set(5)))
     }
 
     it("should mapStreamByKey with value ordering") {
       val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
-      val withMax = rdd.groupSort(2, Ordering.Int.reverse).mapStreamByKey{ iter =>
-        val buffered = iter.buffered
-        val max = buffered.head
-        buffered.map(_ => max)
-      }
+      val withMax = rdd
+        .groupSort(2, Ordering.Int.reverse)
+        .mapStreamByKey{ iter =>
+          val buffered = iter.buffered
+          val max = buffered.head
+          buffered.map(_ => max)
+        }
+        .cache
       assert(validGroupSorted(withMax))
-      assert(withMax.collect.toList.groupBy(identity).mapValues(_.size) ===  Map(("a", 3) -> 2, ("b", 10) -> 2, ("c", 5) -> 1))
+      assert(withMax === Seq(("a", 3), ("a", 3), ("b", 10), ("b", 10), ("c", 5)))
     }
 
     it("should mapStreamByKey with a mutable context and value ordering") {
       val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
-      val withMax = rdd.groupSort(2, Ordering.Int.reverse).mapStreamByKey{ () => ArrayBuffer[Int]() }{ (buffer, iter) =>
-        buffer.clear // i hope this preserves the underlying array otherwise there is no point really in re-using it
-        buffer ++= iter
-        val max = buffer.head
-        buffer.map(_ => max)
-      }
+      val withMax = rdd
+        .groupSort(2, Ordering.Int.reverse)
+        .mapStreamByKey{ () => ArrayBuffer[Int]() }{ (buffer, iter) =>
+          buffer.clear // i hope this preserves the underlying array otherwise there is no point really in re-using it
+          buffer ++= iter
+          val max = buffer.head
+          buffer.map(_ => max)
+        }
+        .cache
       assert(validGroupSorted(withMax))
-      assert(withMax.collect.toList.groupBy(identity).mapValues(_.size) ===  Map(("a", 3) -> 2, ("b", 10) -> 2, ("c", 5) -> 1))
+      assert(withMax ===  Seq(("a", 3), ("a", 3), ("b", 10), ("b", 10), ("c", 5)))
     }
 
     it("should foldLeftByKey without value ordering") {
       val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
-      val sets = rdd.groupSort(2).foldLeftByKey(Set.empty[String]){ case (set, str) => set + str }
+      val sets = rdd
+        .groupSort(2)
+        .foldLeftByKey(Set.empty[String]){ case (set, str) => set + str }
+        .cache
       assert(validGroupSorted(sets))
-      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+      assert(sets === Seq("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
     }
 
     it("should foldLeftByKey with value ordering") {
@@ -95,55 +106,74 @@ class GroupSortedSpec extends FunSpec with Checkers {
         (5, TimeValue(2, 0.5)), (1, TimeValue(1, 1.2)), (5, TimeValue(1, 1.0)),
         (1, TimeValue(2, 2.0)), (1, TimeValue(3, 3.0))
       ))
-      val emas = tseries.groupSort(2, ord).foldLeftByKey(0.0){ case (acc, TimeValue(time, value)) => 0.8 * acc + 0.2 * value }
+      val emas = tseries
+        .groupSort(2, ord)
+        .foldLeftByKey(0.0){ case (acc, TimeValue(time, value)) => 0.8 * acc + 0.2 * value }
+        .cache
       assert(validGroupSorted(emas))
-      assert(emas.collect.toSet === Set((1, 1.0736), (5, 0.26)))
+      assert(emas === Seq((1, 1.0736), (5, 0.26)))
     }
 
     it("should reduceLeftByKey without value ordering") {
       val rdd = sc.parallelize(List(("c", Set("x")), ("a", Set("b")), ("a", Set("c")), ("b", Set("e")), ("b", Set("d"))))
-      val sets = rdd.groupSort(2).reduceLeftByKey { _ ++ _ }
+      val sets = rdd
+        .groupSort(2)
+        .reduceLeftByKey { _ ++ _ }
+        .cache
       assert(validGroupSorted(sets))
-      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+      assert(sets === Seq("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
     }
 
     it("should reduceLeftByKey with value ordering") {
       val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
-      val sets = rdd.groupSort(2, Ordering.String).reduceLeftByKey { _ + _ }
+      val sets = rdd
+        .groupSort(2, Ordering.String)
+        .reduceLeftByKey { _ + _ }
+        .cache
       assert(validGroupSorted(sets))
-      assert(sets.collect.toMap === Map("a" -> "bc", "b" -> "de", "c" -> "x"))
+      assert(sets === Seq("a" -> "bc", "b" -> "de", "c" -> "x"))
     }
 
     it("should mapStreamByKey with value ordering while not exhausting iterators") {
       val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
-      val withMax = rdd.groupSort(2, Ordering.Int.reverse).mapStreamByKey{ iter =>
-        Iterator(iter.next())
-      }
+      val withMax = rdd
+        .groupSort(2, Ordering.Int.reverse)
+        .mapStreamByKey{ iter => Iterator(iter.next()) }
+        .cache
       assert(validGroupSorted(withMax))
-      assert(withMax.collect.toSet ===  Set(("a", 3), ("b", 10), ("c", 5)))
+      assert(withMax ===  Seq(("a", 3), ("b", 10), ("c", 5)))
     }
 
     it("should mapStreamByKey if some keys have no output") {
       // see https://github.com/tresata/spark-sorted/issues/5
       val rdd = sc.parallelize(List(("a", 1), ("c", 10), ("a", 3), ("c", 1), ("b", 5)))
-      val filtered = rdd.groupSort(2, Ordering.Int.reverse).mapStreamByKey(_.filter(_ < 5))
+      val filtered = rdd
+        .groupSort(2, Ordering.Int.reverse)
+        .mapStreamByKey(_.filter(_ < 5))
+        .cache
       assert(validGroupSorted(filtered))
-      assert(filtered.collect.toSet ===  Set(("a", 1), ("a", 3), ("c", 1)))
+      assert(filtered ===  Seq(("a", 1), ("a", 3), ("c", 1)))
     }
 
     it("should foldLeftByKey with a mutable accumulator") {
       import scala.collection.mutable.HashSet
       val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
-      val sets = rdd.groupSort(2).foldLeftByKey(new HashSet[String]){ case (set, str) => set.add(str); set }
+      val sets = rdd
+        .groupSort(2)
+        .foldLeftByKey(new HashSet[String]){ case (set, str) => set.add(str); set }
+        .cache
       assert(validGroupSorted(sets))
-      assert(sets.collect.toMap === Map("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
+      assert(sets === Seq("a" -> Set("b", "c"), "b" -> Set("d", "e"), "c" -> Set("x")))
     }
 
     it("should scanLeftByKey with value ordering") {
       val rdd = sc.parallelize(List(("c", "x"), ("a", "b"), ("a", "c"), ("b", "e"), ("b", "d")))
-      val sets = rdd.groupSort(2, Ordering.String).scanLeftByKey(Set.empty[String]){ case (set, str) => set + str }
+      val sets = rdd
+        .groupSort(2, Ordering.String)
+        .scanLeftByKey(Set.empty[String]){ case (set, str) => set + str }
+        .cache
       assert(validGroupSorted(sets))
-      assert(sets.collect.toSet === Set(
+      assert(sets === Seq(
         ("a", Set()),
         ("a", Set("b")),
         ("a", Set("b", "c")),
@@ -165,12 +195,11 @@ class GroupSortedSpec extends FunSpec with Checkers {
             val biter = iter.buffered
             biter.take(nTake(biter.head))
           }
-        val output = rdd.collect.toSet
+          .cache
         val check = l
           .groupBy(_._1).mapValues(_.map(_._2).sorted).toList
           .flatMap{ case (k, vs) => vs.take(nTake(vs.head)).map((k, _)) }
-          .toSet
-        validGroupSorted(rdd) && check === output
+        validGroupSorted(rdd) && rdd === check
       }
     }
 
@@ -179,40 +208,43 @@ class GroupSortedSpec extends FunSpec with Checkers {
         val rdd = sc.parallelize(l)
           .groupSort(2)
           .reduceLeftByKey(math.min)
-        val output = rdd.collect.toSet
+          .cache
         val check = l
           .groupBy(_._1).mapValues(_.map(_._2)).toList
           .map{ case (k, vs) => (k, vs.min) }
-          .toSet
-        validGroupSorted(rdd) && check === output
+        validGroupSorted(rdd) && rdd === check
       }
     }
 
     it("should chain operations") {
       val rdd = sc.parallelize(List(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)))
-      val withMax = rdd.groupSort(2, Ordering.Int.reverse).mapValues(_ + 1).mapStreamByKey{ iter =>
-        val buffered = iter.buffered
-        val max = buffered.head
-        buffered.map(_ => max)
-      }
+      val withMax = rdd
+        .groupSort(2, Ordering.Int.reverse)
+        .mapValues(_ + 1)
+        .mapStreamByKey{ iter =>
+          val buffered = iter.buffered
+          val max = buffered.head
+          buffered.map(_ => max)
+        }
+        .cache
       assert(validGroupSorted(withMax))
-      assert(withMax.collect.toList.groupBy(identity).mapValues(_.size) ===  Map(("a", 4) -> 2, ("b", 11) -> 2, ("c", 6) -> 1))
+      assert(withMax ===  Seq(("a", 4), ("a", 4), ("b", 11), ("b", 11), ("c", 6)))
     }
 
     it("should mergeJoinInner") {
       val x = sc.parallelize((1 to 11).map(i => (i.toString, i.toString))).groupSort(1)
       val y = sc.parallelize((10 to 11).map(i => (i.toString, i.toString))).groupSort(1)
-      val z = x.mergeJoinInner(y)
+      val z = x.mergeJoinInner(y).cache
       assert(validGroupSorted(z))
-      assert(z.collect.toSet === Set(("10", ("10", "10")), ("11", ("11", "11"))))
+      assert(z === Seq(("10", ("10", "10")), ("11", ("11", "11"))))
     }
 
     it("should mergeJoinInner with complex implicit ordering") {
       val x = sc.parallelize((1 to 11)).map(i => ((i, i), i)).groupSort(1)
       val y = sc.parallelize((10 to 11)).map(i => ((i, i), i)).groupSort(1)
-      val z = x.mergeJoinInner(y)
+      val z = x.mergeJoinInner(y).cache
       assert(validGroupSorted(z))
-      assert(z.collect.toSet === Set(((10, 10), (10, 10)), ((11, 11), (11, 11)))) 
+      assert(z === Seq(((10, 10), (10, 10)), ((11, 11), (11, 11)))) 
     }
 
     it("should mergeJoin for randomly generated datasets") {
@@ -237,19 +269,18 @@ class GroupSortedSpec extends FunSpec with Checkers {
         val left = sc.parallelize(a).groupSort(2, if (sortValuesA) Some(Ordering.String) else None)
         val right = sc.parallelize(b).groupSort(2, if (sortValuesB) Some(Ordering.String) else None)
 
-        val resultFullOuter = left.mergeJoin(right)
-        val resultInner = left.mergeJoinInner(right)
-        val resultLeftOuter = left.mergeJoinLeftOuter(right)
-        val resultRightOuter = left.mergeJoinRightOuter(right)
+        val resultFullOuter = left.mergeJoin(right).cache
+        val resultInner = left.mergeJoinInner(right).cache
+        val resultLeftOuter = left.mergeJoinLeftOuter(right).cache
+        val resultRightOuter = left.mergeJoinRightOuter(right).cache
 
-        validGroupSorted(resultFullOuter) &&
-          resultFullOuter.collect.toList.sorted === check.sorted &&
+        validGroupSorted(resultFullOuter) && resultFullOuter === check &&
           validGroupSorted(resultInner) &&
-          resultInner.collect.toList.sorted === check.collect{ case (k, (Some(v), Some(w))) => (k, (v, w)) }.sorted &&
+          resultInner === check.collect{ case (k, (Some(v), Some(w))) => (k, (v, w)) } &&
           validGroupSorted(resultLeftOuter) &&
-          resultLeftOuter.collect.toList.sorted === check.collect{ case (k, (Some(v), maybeW)) => (k, (v, maybeW)) }.sorted &&
+          resultLeftOuter === check.collect{ case (k, (Some(v), maybeW)) => (k, (v, maybeW)) } &&
           validGroupSorted(resultRightOuter) &&
-          resultRightOuter.collect.toList.sorted === check.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }.sorted
+          resultRightOuter === check.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }
       }
     }
 
@@ -257,10 +288,10 @@ class GroupSortedSpec extends FunSpec with Checkers {
       check{ (a: List[(String, String)], b: List[(String, String)], sortValuesA: Boolean, sortValuesB: Boolean) =>
         val left = sc.parallelize(a).groupSort(2, if (sortValuesA) Some(Ordering.String) else None)
         val right = sc.parallelize(b).groupSort(2, if (sortValuesB) Some(Ordering.String) else None)
-        val result = left.mergeUnion(right)
+        val result = left.mergeUnion(right).cache
         val check = sc.parallelize(a ++ b).groupSort(2, None)
 
-        validGroupSorted(result) && check.collect.toList.sorted === result.collect.toList.sorted
+        validGroupSorted(result) && result === check
       }
     }
   }
