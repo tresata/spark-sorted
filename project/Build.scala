@@ -20,7 +20,7 @@ object ProjectBuild extends Build {
       scalacOptions in (Test, console) := (scalacOptions in (Test, console)).value.filter(_ != "-Ywarn-unused-import"),
       // sbt-spark-package settings
       spName := "tresata/spark-sorted",
-      sparkVersion := "2.0.0",
+      sparkVersion := "2.0.1",
       sparkComponents += "core",
       spIncludeMaven := true,
       spAppendScalaVersion := true,
