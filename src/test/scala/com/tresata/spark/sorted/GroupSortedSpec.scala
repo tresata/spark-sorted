@@ -45,7 +45,7 @@ class GroupSortedSpec extends FunSpec with Checkers with SparkSuite {
         val rdd = sc.parallelize(l)
           .groupSort(2, { (v1: Int, v2: Int) => v1 + v2 })
           .cache
-        validGroupSorted(rdd) && rdd === l.groupBy(_._1).mapValues(_.map(_._2).sum)
+        validGroupSorted(rdd) && rdd === l.groupBy(_._1).mapValues(_.map(_._2).sum).toSeq
       }
     }
   }

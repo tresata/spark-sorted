@@ -1,8 +1,11 @@
 package com.tresata.spark.sorted
 
+import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
 import scala.collection.mutable.ArrayBuilder
+
+import org.apache.spark.SparkEnv
 
 object `package` {
   // assumes all values for a given key are consecutive
@@ -140,5 +143,14 @@ object `package` {
         x2
       }
     }
+  }
+
+  private[sorted] def newWCreate[W: ClassTag](w: W): () => W = {
+    // not-so-pretty stuff to serialize and deserialize w so it also works with mutable accumulators
+    val wBuffer = SparkEnv.get.serializer.newInstance().serialize(w)
+    val wArray = new Array[Byte](wBuffer.limit)
+    wBuffer.get(wArray)
+    lazy val cachedSerializer = SparkEnv.get.serializer.newInstance
+    () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
   }
 }

@@ -21,7 +21,7 @@ object ProjectBuild extends Build {
       // sbt-spark-package settings
       spName := "tresata/spark-sorted",
       sparkVersion := "2.0.1",
-      sparkComponents += "core",
+      sparkComponents ++= Seq("core", "sql"),
       spIncludeMaven := true,
       spAppendScalaVersion := true,
       // end sbt-spark-package settings

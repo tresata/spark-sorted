@@ -1,9 +1,8 @@
 package com.tresata.spark.sorted
 
-import java.nio.ByteBuffer
 import scala.reflect.ClassTag
 
-import org.apache.spark.{ Aggregator, SparkEnv, Partition, Partitioner, TaskContext }
+import org.apache.spark.{ Aggregator, Partition, Partitioner, TaskContext }
 import org.apache.spark.Partitioner.defaultPartitioner
 import org.apache.spark.rdd.{ RDD, ShuffledRDD }
 
@@ -42,15 +41,6 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
   def mapStreamByKey[W: ClassTag](f: Iterator[V] => TraversableOnce[W]): GroupSorted[K, W] = copy(super.mapPartitions(mapStreamIterator(_)(f), true), None)
 
   def mapStreamByKey[W: ClassTag, C](c: () => C)(f: (C, Iterator[V]) => TraversableOnce[W]): GroupSorted[K, W] = copy(super.mapPartitions(mapStreamIteratorWithContext(_)(c, f), true), None)
-
-  private def newWCreate[W: ClassTag](w: W): () => W = {
-    // not-so-pretty stuff to serialize and deserialize w so it also works with mutable accumulators
-    val wBuffer = SparkEnv.get.serializer.newInstance().serialize(w)
-    val wArray = new Array[Byte](wBuffer.limit)
-    wBuffer.get(wArray)
-    lazy val cachedSerializer = SparkEnv.get.serializer.newInstance
-    () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
-  }
 
   def foldLeftByKey[W: ClassTag](w: W)(f: (W, V) => W): GroupSorted[K, W] = {
     val wCreate = newWCreate(w)
