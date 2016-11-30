@@ -9,9 +9,9 @@ import org.apache.spark.sql.catalyst.encoders.{ encoderFor, ExpressionEncoder }
 import com.tresata.spark.sorted.{ mapStreamIterator, mapStreamIteratorWithContext, newWCreate }
 
 object GroupSortedDataset {
-  private[sql] def apply[K: Encoder, V](dataset: Dataset[(K, V)], numPartitions: Option[Int]): GroupSortedDataset[K, V] = {
+  private[sql] def apply[K: Encoder, V](dataset: Dataset[(K, V)], numPartitions: Option[Int], reverse: Boolean): GroupSortedDataset[K, V] = {
     val key = col(dataset.columns.head)
-    val value = col(dataset.columns.last)
+    val value = if (reverse) col(dataset.columns.last).desc else col(dataset.columns.last).asc
     new GroupSortedDataset(numPartitions.map(dataset.repartition(_, key)).getOrElse(dataset.repartition(key)).sortWithinPartitions(key, value))
   }
 }

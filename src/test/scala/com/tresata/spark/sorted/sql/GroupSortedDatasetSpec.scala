@@ -17,7 +17,9 @@ case class TimeValue(time: Int, value: Double)
 class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
   import spark.implicits._
 
-  def validGroupSorted[K: TypeTag, V: TypeTag: Ordering](dataset: Dataset[(K, V)]): Boolean = {
+  def natOrd[V](reverse: Boolean)(implicit o: Ordering[V]): Ordering[V] = if (reverse) o.reverse else o
+
+  def validGroupSorted[K: TypeTag, V: TypeTag: Ordering](dataset: Dataset[(K, V)], reverse: Boolean = false): Boolean = {
     implicit val encoder: Encoder[Seq[(K, V)]] = ExpressionEncoder[Seq[(K, V)]]()
     val seq = dataset.mapPartitions(iter => Iterator(iter.toSeq)).collect.toSeq
 
@@ -25,7 +27,7 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
     val check1 = seq.map(_.map(_._1).toSet).reduce(_ ++ _).size == seq.map(_.map(_._1).toSet.size).reduce(_ + _)
 
     // check2 2: values are sorted per key
-    val valueOrdering = implicitly[Ordering[V]]
+    val valueOrdering = natOrd[V](reverse)
     val check2 = seq.flatten.sliding(2).forall{
       case Seq((k1, _), (k2, _)) if k1 != k2 => true
       case Seq(_) => true
@@ -37,24 +39,24 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
 
   describe("PairDatasetFunctions") {
     it("should group-sort for randomly generated datasets") {
-      check{ (seq: Seq[(String, String)]) =>
+      check{ (seq: Seq[(String, String)], reverse: Boolean) =>
         val ds = seq.toDS
-          .groupSort(2)
+          .groupSort(2, reverse)
           .toDS
           .cache
 
-        validGroupSorted(ds) && ds === seq
+        validGroupSorted(ds, reverse) && ds === seq
       }
     }
   }
 
   describe("GroupSortedDataset") {
     it("should mapStreamByKey with take operations for randomly generated datasets") {
-      check{ (seq: Seq[(Int, Int)]) =>
+      check{ (seq: Seq[(Int, Int)], reverse: Boolean) =>
         val nTake: Int => Int = i => i % 10
 
         val ds = seq.toDS
-          .groupSort(2)
+          .groupSort(2, reverse)
           .mapStreamByKey{ iter =>
           val biter = iter.buffered
           biter.take(nTake(biter.head))
@@ -62,26 +64,25 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
           .cache
 
         val check = seq
-          .groupBy(_._1).mapValues(_.map(_._2).sorted).toSeq
+          .groupBy(_._1).mapValues(_.map(_._2).sorted(natOrd[Int](reverse))).toSeq
           .flatMap{ case (k, vs) => vs.take(nTake(vs.head)).map((k, _)) }
 
-        validGroupSorted(ds) && ds === check
+        validGroupSorted(ds, reverse) && ds === check
       }
     }
 
     it("should mapStreamByKey with a mutable context") {
       val ds = Seq(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)).toDS
       val withMax = ds
-        .map{ case (k, v) => (k, (-v, v)) }
-        .groupSort(2)
-        .mapStreamByKey{ () => ArrayBuffer[(Int, Int)]() }{ (buffer, iter) =>
+        .groupSort(2, true)
+        .mapStreamByKey{ () => ArrayBuffer[Int]() }{ (buffer, iter) =>
           buffer.clear // i hope this preserves the underlying array otherwise there is no point really in re-using it
           buffer ++= iter
-          val max = buffer.head._2
+          val max = buffer.head
           buffer.map(_ => max)
         }
         .cache
-      assert(validGroupSorted(withMax))
+      assert(validGroupSorted(withMax, true))
       assert(withMax ===  Seq(("a", 3), ("a", 3), ("b", 10), ("b", 10), ("c", 5)))
     }
 
@@ -111,11 +112,10 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
     it("should mapStreamByKey while not exhausting iterators") {
       val ds = Seq(("a", 1), ("b", 10), ("a", 3), ("b", 1), ("c", 5)).toDS
       val withMax = ds
-        .map{ case (k, v) => (k, (-v, v)) }
-        .groupSort(2)
-        .mapStreamByKey{ iter => Iterator(iter.next()._2) }
+        .groupSort(2, true)
+        .mapStreamByKey{ iter => Iterator(iter.next()) }
         .cache
-      assert(validGroupSorted(withMax))
+      assert(validGroupSorted(withMax, true))
       assert(withMax ===  Seq(("a", 3), ("b", 10), ("c", 5)))
     }
 
@@ -136,6 +136,8 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
         .groupSort(2)
         .scanLeftByKey(Seq.empty[String]){ case (seq, str) => seq :+ str }
         .cache
+
+      // surprised this doesnt exist
       implicit def ord[X](implicit elemOrd: Ordering[X]): Ordering[Seq[X]] = new Ordering[Seq[X]] {
         def compare(x: Seq[X], y: Seq[X]): Int = {
           if (x.isEmpty) -1
@@ -149,6 +151,7 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
           }
         }
       }
+
       assert(validGroupSorted(seqs))
       assert(seqs === Seq(
         ("a", Seq()),

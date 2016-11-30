@@ -7,7 +7,7 @@ object PairDatasetFunctions {
 }
 
 class PairDatasetFunctions[K: Encoder, V](dataset: Dataset[(K, V)]) extends Serializable {
-  def groupSort: GroupSortedDataset[K, V] = GroupSortedDataset(dataset, None)
+  def groupSort: GroupSortedDataset[K, V] = groupSort()
 
-  def groupSort(numPartitions: Int): GroupSortedDataset[K, V] = GroupSortedDataset(dataset, Some(numPartitions))
+  def groupSort(numPartitions: Int = -1, reverse: Boolean = false): GroupSortedDataset[K, V] = GroupSortedDataset(dataset, if (numPartitions > 0) Some(numPartitions) else None, reverse)
 }
