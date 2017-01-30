@@ -43,3 +43,7 @@ Also, we are introducing the mergeJoin operation on GroupSorted as an experiment
 Starting with release 1.0.0 Scala 2.10 is no longer supported.
 
 Release 1.0.0 will also add initial support for the groupSort operation on Spark SQL Dataset. For Dataset the design of groupSort is kept very simple: it only works for a key-value Dataset (```Dataset[(K, V)]```) with the grouping by key and sorting by value per key. To sort by anything other than the natural ordering of the values simply do a transformation on the values (see unit tests for examples) to get back to a natural ordering. Unfortunately for Dataset it is not (yet) possible to push the secondary sort into the shuffle but the good news is that the sort is implemented efficiently using the Dataset.sortWithinPartitions operation.
+
+## Update Jan 2017
+
+Starting with release 1.2.0 Java 7 is no longer supported.
