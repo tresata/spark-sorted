@@ -273,14 +273,21 @@ class GroupSortedSpec extends FunSpec with Checkers with SparkSuite {
         val resultInner = left.mergeJoinInner(right).cache
         val resultLeftOuter = left.mergeJoinLeftOuter(right).cache
         val resultRightOuter = left.mergeJoinRightOuter(right).cache
+        val resultCustomInner = left.mergeJoin(right, { (iter1: Iterator[String], iter2: Iterator[String]) =>
+          val seq2 = iter2.toSeq
+          iter1.flatMap(v1 => seq2.map(v2 => (v1, v2)))
+        }).cache
 
-        validGroupSorted(resultFullOuter) && resultFullOuter === check &&
+        validGroupSorted(resultFullOuter) &&
+          resultFullOuter === check &&
           validGroupSorted(resultInner) &&
           resultInner === check.collect{ case (k, (Some(v), Some(w))) => (k, (v, w)) } &&
           validGroupSorted(resultLeftOuter) &&
           resultLeftOuter === check.collect{ case (k, (Some(v), maybeW)) => (k, (v, maybeW)) } &&
           validGroupSorted(resultRightOuter) &&
-          resultRightOuter === check.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }
+          resultRightOuter === check.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) } &&
+          validGroupSorted(resultCustomInner) &&
+          resultCustomInner === check.collect{ case (k, (Some(v), Some(w))) => (k, (v, w)) }
       }
     }
 

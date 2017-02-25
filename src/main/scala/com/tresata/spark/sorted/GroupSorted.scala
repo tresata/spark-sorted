@@ -94,6 +94,20 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
     copy(joined, None)
   }
 
+  def mergeJoin[W: ClassTag, U: ClassTag](other: GroupSorted[K, W], f: (Iterator[V], Iterator[W]) => TraversableOnce[U]): GroupSorted[K, U] = {
+    val partitioner1 = defaultPartitioner(this, other)
+    val left = this.partitioner match {
+      case Some(partitioner1) => this
+      case _ => GroupSorted(this, partitioner1, keyOrdering, None)
+    }
+    val right = other.partitioner match {
+      case Some(partitioner1) => other
+      case _ => GroupSorted(other, partitioner1, keyOrdering, None)
+    }
+    val zipped = left.zipPartitions(right, true)(mergeJoinIterators(_, _, f, keyOrdering))
+    copy(zipped, None)
+  }
+
   def mergeUnion(other: GroupSorted[K, V]): GroupSorted[K, V] = {
     val keyValueOrdering = Ordering.by{ kv: (K, V) => kv._1 }(keyOrdering)
     copy(this.zipPartitions(other, true)(mergeUnionIterators(_, _, keyValueOrdering)), None)

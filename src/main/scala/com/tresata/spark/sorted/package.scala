@@ -50,7 +50,7 @@ object `package` {
         kwiter.hasNext
       }
 
-      override def next: (K, W) = if (hasNext) kwiter.next() else throw new NoSuchElementException("next on empty iterator")
+      override def next(): (K, W) = if (hasNext) kwiter.next() else throw new NoSuchElementException("next on empty iterator")
     }
   }
 
@@ -68,9 +68,9 @@ object `package` {
       private var prevK2: K = _
       private val v2sBuilder = ArrayBuilder.make[V2]
 
-      def hasNext: Boolean = bit1.hasNext || bit2.hasNext
+      override def hasNext: Boolean = bit1.hasNext || bit2.hasNext
 
-      def next: (Option[(K, V1)], Option[(K, Array[V2])]) = {
+      override def next(): (Option[(K, V1)], Option[(K, Array[V2])]) = {
         val hasNext1 = bit1.hasNext
         val hasNext2 = bit2.hasNext
         val comp = if (hasNext1 && hasNext2) ord.compare(bit1.head._1, bit2.head._1) else 0
@@ -115,6 +115,65 @@ object `package` {
   private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], bufferLeft: Boolean)(
     implicit ord: Ordering[K], ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] = mergeJoinIterators(it1, it2, ord, bufferLeft)
 
+  // assumes both iterators are sorted by key with repeat keys allowed
+  private[sorted] def mergeJoinIterators[K, V1, V2, W](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], f: (Iterator[V1], Iterator[V2]) => TraversableOnce[W], ord: Ordering[K]): Iterator[(K, W)] = {
+    def iterForKey[V](key: K, bit: BufferedIterator[(K, V)]): Iterator[V] = new Iterator[V]{
+      override def hasNext: Boolean = bit.hasNext && bit.head._1 == key
+
+      override def next: V = if (hasNext) bit.next._2 else throw new NoSuchElementException("next on empty iterator")
+    }
+
+    new Iterator[(K, W)] {
+      private val bit1 = it1.buffered
+      private val bit2 = it2.buffered
+
+      private def nextKeyIter(): (K, Iterator[W]) = {
+        def nextIter(key: K): Iterator[W] = f(iterForKey(key, bit1), iterForKey(key, bit2)).toIterator
+
+        val hasNext1 = bit1.hasNext
+        val hasNext2 = bit2.hasNext
+
+        if (hasNext1 || hasNext2) {
+          val key = if (hasNext1 && hasNext2) {
+            val key1 = bit1.head._1
+            val key2 = bit2.head._1
+            if (ord.compare(key1, key2) <= 0) key1 else key2
+          } else if (hasNext1)
+            bit1.head._1
+          else
+            bit2.head._1
+          (key, nextIter(key)) 
+        } else null
+      }
+
+      private var currKeyIter = nextKeyIter()
+
+      private def update(): Unit = {
+        while (currKeyIter != null && !currKeyIter._2.hasNext) {
+          while (bit1.hasNext && bit1.head._1 == currKeyIter._1)
+            bit1.next()
+          while (bit2.hasNext && bit2.head._1 == currKeyIter._1)
+            bit2.next()
+          currKeyIter = nextKeyIter()
+        }
+      }
+
+      override def hasNext: Boolean = {
+        update()
+        currKeyIter != null && currKeyIter._2.hasNext
+      }
+
+      override def next(): (K, W) =
+        if (hasNext)
+          (currKeyIter._1, currKeyIter._2.next())
+        else
+          throw new NoSuchElementException("next on empty iterator")
+    }
+  }
+
+  private[sorted] def mergeJoinIterators[K, V1, V2, W](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], f: (Iterator[V1], Iterator[V2]) => TraversableOnce[W])(implicit ord1: Ordering[K],
+    dummy: DummyImplicit): Iterator[(K, W)] = mergeJoinIterators[K, V1, V2, W](it1, it2, f, ord1)
+
   // assumes both iterators are sorted
   // is safe with a partial ordering
   private[sorted] def mergeUnionIterators[X](it1: Iterator[X], it2: Iterator[X], ord: Ordering[X]): Iterator[X] = new Iterator[X] {
@@ -125,9 +184,9 @@ object `package` {
     private var prev1: X = _
     private var prev2: X = _
 
-    def hasNext: Boolean = bit1.hasNext || bit2.hasNext
+    override def hasNext: Boolean = bit1.hasNext || bit2.hasNext
 
-    def next(): X = {
+    override def next(): X = {
       val hasNext1 = bit1.hasNext
       val hasNext2 = bit2.hasNext
       val negComp = hasNext1 && hasNext2 && ord.compare(bit1.head, bit2.head) <= 0
