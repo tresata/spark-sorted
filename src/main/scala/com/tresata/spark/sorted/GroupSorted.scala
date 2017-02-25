@@ -54,7 +54,7 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
     mapStreamByKey(_.scanLeft(wCreate())(f))
   }
 
-  def mergeJoin[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (Option[V], Option[W])] = {
+  def mergeJoin[W: ClassTag, U: ClassTag](other: GroupSorted[K, W], f: (Iterator[V], Iterator[W]) => TraversableOnce[U]): GroupSorted[K, U] = {
     // this is kind of broken because Scala's implicit Orderings don't have proper equals/hashCode
     // it seems to work for primitives and strings but not for tuples
     // could use org.apache.commons.lang.builder.EqualsBuilder.reflectionEquals but that might throw a SecurityException
@@ -69,8 +69,13 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
       case Some(partitioner1) => other
       case _ => GroupSorted(other, partitioner1, keyOrdering, None)
     }
-    val zipped = left.zipPartitions(right, true)(mergeJoinIterators(_, _, keyOrdering, bufferLeft))
+    val zipped = left.zipPartitions(right, true)(mergeJoinIterators(_, _, f, keyOrdering))
     copy(zipped, None)
+  }
+
+  def mergeJoin[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (Option[V], Option[W])] = {
+    val f = if (bufferLeft) swapSides(fMergeJoinOuter[W, V]) else fMergeJoinOuter[V, W]
+    mergeJoin(other, f)
   }
 
   def mergeJoinInner[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (V, W)] = {
@@ -92,20 +97,6 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
       iter.collect{ case (k, (maybeV, Some(w))) => (k, (maybeV, w)) }
     }, true)
     copy(joined, None)
-  }
-
-  def mergeJoin[W: ClassTag, U: ClassTag](other: GroupSorted[K, W], f: (Iterator[V], Iterator[W]) => TraversableOnce[U]): GroupSorted[K, U] = {
-    val partitioner1 = defaultPartitioner(this, other)
-    val left = this.partitioner match {
-      case Some(partitioner1) => this
-      case _ => GroupSorted(this, partitioner1, keyOrdering, None)
-    }
-    val right = other.partitioner match {
-      case Some(partitioner1) => other
-      case _ => GroupSorted(other, partitioner1, keyOrdering, None)
-    }
-    val zipped = left.zipPartitions(right, true)(mergeJoinIterators(_, _, f, keyOrdering))
-    copy(zipped, None)
   }
 
   def mergeUnion(other: GroupSorted[K, V]): GroupSorted[K, V] = {

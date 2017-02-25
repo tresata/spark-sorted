@@ -46,13 +46,15 @@ class packageSpec extends FunSpec with Checkers {
             }
           }
         }
-        val result = mergeJoinIterators(aSorted.iterator, bSorted.iterator, bufferLeft).toList
+        val f = if (bufferLeft) swapSides(fMergeJoinOuter[Int, Int]) else fMergeJoinOuter[Int, Int]
+        val result = mergeJoinIterators(aSorted.iterator, bSorted.iterator, f, implicitly[Ordering[Int]]).toList
         result === check
       }
     }
 
     it("should fail to merge-join 2 incorrectly sorted key-value iterators") {
-      intercept[AssertionError](mergeJoinIterators(List((1, "a"), (2, "b"), (3, "c")).iterator, List((1, "a"), (3, "b"), (2, "c")).iterator, false).toList)
+      intercept[AssertionError](mergeJoinIterators(List((1, "a"), (2, "b"), (3, "c")).iterator, List((1, "a"), (3, "b"), (2, "c")).iterator,
+        fMergeJoinOuter[String, String], implicitly[Ordering[Int]]).toList)
     }
 
     it("should merge 2 sorted key-value iterators with a custom merge function") {
@@ -75,7 +77,7 @@ class packageSpec extends FunSpec with Checkers {
             (0 :: l1).take(nTake).flatMap{ v1 => (0 :: l2).take(nTake).map{ v2 => (k, (v1, v2)) } }
           }
         }
-        val result = mergeJoinIterators(aSorted.iterator, bSorted.iterator, f).toList
+        val result = mergeJoinIterators(aSorted.iterator, bSorted.iterator, f, implicitly[Ordering[Int]]).toList
         result === check
       }
     }

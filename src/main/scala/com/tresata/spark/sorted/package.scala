@@ -56,6 +56,23 @@ object `package` {
   private[sorted] def mapStreamIterator[K, V, W](iter: Iterator[(K, V)])(f: Iterator[V] => TraversableOnce[W]): Iterator[(K, W)] =
     mapStreamIteratorWithContext[K, V, W, Unit](iter)(() => (), (_: Unit, it: Iterator[V]) => f(it))
 
+
+  private[sorted] def fMergeJoinOuter[V1, V2: ClassTag]: (Iterator[V1], Iterator[V2]) => TraversableOnce[(Option[V1], Option[V2])] = { (it1, it2) =>
+    val a2 = it2.toArray
+    if (it1.hasNext) {
+      if (a2.isEmpty)
+        it1.map{ v1 => (Some(v1), None) }
+      else
+        it1.flatMap{ v1 => a2.map(v2 => (Some(v1), Some(v2))) }
+    } else {
+      a2.map{ v2 => (None, Some(v2)) }
+    }
+  }
+
+  private[sorted] def swapSides[V1, V2, U1, U2](f: (Iterator[V2], Iterator[V1]) => TraversableOnce[(U2, U1)]): (Iterator[V1], Iterator[V2]) => TraversableOnce[(U1, U2)] = {
+    (it1, it2) => f(it2, it1).map(_.swap)
+  }
+
   // assumes both iterators are sorted by key with repeat keys allowed
   // key cannot be null
   private[sorted] def mergeJoinIterators[K, V1, V2, W](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], f: (Iterator[V1], Iterator[V2]) => TraversableOnce[W], ord: Ordering[K]): Iterator[(K, W)] = {
@@ -115,34 +132,6 @@ object `package` {
           throw new NoSuchElementException("next on empty iterator")
     }
   }
-
-  private[sorted] def mergeJoinIterators[K, V1, V2, W](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], f: (Iterator[V1], Iterator[V2]) => TraversableOnce[W])(implicit ord1: Ordering[K],
-    dummy: DummyImplicit): Iterator[(K, W)] = mergeJoinIterators[K, V1, V2, W](it1, it2, f, ord1)
-  
-  private def mergeJoinIterators[K, V1, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K]): Iterator[(K, (Option[V1], Option[V2]))] = {
-    val f: (Iterator[V1], Iterator[V2]) => TraversableOnce[(Option[V1] ,Option[V2])] = { (it1, it2) =>
-      val a2 = it2.toArray
-      if (it1.hasNext) {
-        if (a2.isEmpty)
-          it1.map{ v1 => (Some(v1), None) }
-        else
-          it1.flatMap{ v1 => a2.map(v2 => (Some(v1), Some(v2))) }
-      } else {
-        a2.map{ v2 => (None, Some(v2)) }
-      }
-    }
-    mergeJoinIterators(it1, it2, f, ord)
-  }
-
-  private[sorted] def mergeJoinIterators[K, V1: ClassTag, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K], bufferLeft: Boolean):
-      Iterator[(K, (Option[V1], Option[V2]))] =
-    if (bufferLeft)
-      mergeJoinIterators(it2, it1, ord).map(kv => (kv._1, kv._2.swap))
-    else
-      mergeJoinIterators(it1, it2, ord)
-
-  private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], bufferLeft: Boolean)(
-    implicit ord: Ordering[K], ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] = mergeJoinIterators(it1, it2, ord, bufferLeft)
 
   // assumes both iterators are sorted
   // is safe with a partial ordering
