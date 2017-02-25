@@ -3,7 +3,6 @@ package com.tresata.spark.sorted
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
-import scala.collection.mutable.ArrayBuilder
 
 import org.apache.spark.SparkEnv
 
@@ -59,63 +58,6 @@ object `package` {
 
   // assumes both iterators are sorted by key with repeat keys allowed
   // key cannot be null
-  private def mergeJoinIterators[K, V1, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K]): Iterator[(K, (Option[V1], Option[V2]))] =
-    new Iterator[(Option[(K, V1)], Option[(K, Array[V2])])] {
-      private val bit1 = it1.buffered
-      private val bit2 = it2.buffered
-
-      private var prevK1: K = _
-      private var prevK2: K = _
-      private val v2sBuilder = ArrayBuilder.make[V2]
-
-      override def hasNext: Boolean = bit1.hasNext || bit2.hasNext
-
-      override def next(): (Option[(K, V1)], Option[(K, Array[V2])]) = {
-        val hasNext1 = bit1.hasNext
-        val hasNext2 = bit2.hasNext
-        val comp = if (hasNext1 && hasNext2) ord.compare(bit1.head._1, bit2.head._1) else 0
-        val maybeK1V1 = if (hasNext1 && (!hasNext2 || comp <= 0)) {
-          val (k1, v1) = bit1.next()
-          assert(prevK1 == null || ord.compare(prevK1, k1) <= 0) // repeat keys are ok
-          prevK1 = k1
-          Some((k1, v1))
-        } else None
-        val maybeK2Vs2 = if (prevK1 == prevK2 && maybeK1V1.map(_._1 == prevK1).getOrElse(false)) {
-          Some((prevK2, v2sBuilder.result))
-        } else if (hasNext2 && (!hasNext1 || comp >= 0)) {
-          val k2 = bit2.head._1
-          assert(prevK2 == null || ord.compare(prevK2, k2) < 0) // repeat keys are not ok
-          prevK2 = k2
-          v2sBuilder.clear()
-          while (bit2.hasNext && bit2.head._1 == k2) // for given key all values on right side must fit in memory
-            v2sBuilder += bit2.next()._2
-          Some((k2, v2sBuilder.result))
-        } else None
-        (maybeK1V1, maybeK2Vs2)
-      }
-    }.flatMap {
-      case (Some((k1, v1)), Some((k2, v2s))) =>
-        assert(k1 == k2)
-        v2s.map(v2 => (k1, (Some(v1), Some(v2))))
-      case (Some((k1, v1)), None) =>
-        Iterator.single((k1, (Some(v1), None)))
-      case (None, Some((k2, v2s))) =>
-        v2s.map(v2 => (k2, (None, Some(v2))))
-      case (None, None) =>
-        throw new NoSuchElementException("next on empty iterator")
-    }
-
-  private[sorted] def mergeJoinIterators[K, V1: ClassTag, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K], bufferLeft: Boolean):
-      Iterator[(K, (Option[V1], Option[V2]))] =
-    if (bufferLeft)
-      mergeJoinIterators(it2, it1, ord).map(kv => (kv._1, kv._2.swap))
-    else
-      mergeJoinIterators(it1, it2, ord)
-
-  private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], bufferLeft: Boolean)(
-    implicit ord: Ordering[K], ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] = mergeJoinIterators(it1, it2, ord, bufferLeft)
-
-  // assumes both iterators are sorted by key with repeat keys allowed
   private[sorted] def mergeJoinIterators[K, V1, V2, W](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], f: (Iterator[V1], Iterator[V2]) => TraversableOnce[W], ord: Ordering[K]): Iterator[(K, W)] = {
     def iterForKey[V](key: K, bit: BufferedIterator[(K, V)]): Iterator[V] = new Iterator[V]{
       override def hasNext: Boolean = bit.hasNext && bit.head._1 == key
@@ -146,6 +88,7 @@ object `package` {
         } else null
       }
 
+      private var prevKey: K = _
       private var currKeyIter = nextKeyIter()
 
       private def update(): Unit = {
@@ -154,7 +97,9 @@ object `package` {
             bit1.next()
           while (bit2.hasNext && bit2.head._1 == currKeyIter._1)
             bit2.next()
+          prevKey = currKeyIter._1
           currKeyIter = nextKeyIter()
+          assert(currKeyIter == null || ord.compare(prevKey, currKeyIter._1) < 0)
         }
       }
 
@@ -173,6 +118,31 @@ object `package` {
 
   private[sorted] def mergeJoinIterators[K, V1, V2, W](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], f: (Iterator[V1], Iterator[V2]) => TraversableOnce[W])(implicit ord1: Ordering[K],
     dummy: DummyImplicit): Iterator[(K, W)] = mergeJoinIterators[K, V1, V2, W](it1, it2, f, ord1)
+  
+  private def mergeJoinIterators[K, V1, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K]): Iterator[(K, (Option[V1], Option[V2]))] = {
+    val f: (Iterator[V1], Iterator[V2]) => TraversableOnce[(Option[V1] ,Option[V2])] = { (it1, it2) =>
+      val a2 = it2.toArray
+      if (it1.hasNext) {
+        if (a2.isEmpty)
+          it1.map{ v1 => (Some(v1), None) }
+        else
+          it1.flatMap{ v1 => a2.map(v2 => (Some(v1), Some(v2))) }
+      } else {
+        a2.map{ v2 => (None, Some(v2)) }
+      }
+    }
+    mergeJoinIterators(it1, it2, f, ord)
+  }
+
+  private[sorted] def mergeJoinIterators[K, V1: ClassTag, V2: ClassTag](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], ord: Ordering[K], bufferLeft: Boolean):
+      Iterator[(K, (Option[V1], Option[V2]))] =
+    if (bufferLeft)
+      mergeJoinIterators(it2, it1, ord).map(kv => (kv._1, kv._2.swap))
+    else
+      mergeJoinIterators(it1, it2, ord)
+
+  private[sorted] def mergeJoinIterators[K, V1, V2](it1: Iterator[(K, V1)], it2: Iterator[(K, V2)], bufferLeft: Boolean)(
+    implicit ord: Ordering[K], ctv1: ClassTag[V1], ctv2: ClassTag[V2]): Iterator[(K, (Option[V1], Option[V2]))] = mergeJoinIterators(it1, it2, ord, bufferLeft)
 
   // assumes both iterators are sorted
   // is safe with a partial ordering
