@@ -58,14 +58,15 @@ object `package` {
 
 
   private[sorted] def fMergeJoinOuter[V1, V2: ClassTag]: (Iterator[V1], Iterator[V2]) => TraversableOnce[(Option[V1], Option[V2])] = { (it1, it2) =>
-    val a2 = it2.toArray
     if (it1.hasNext) {
-      if (a2.isEmpty)
+      if (!it2.hasNext) {
         it1.map{ v1 => (Some(v1), None) }
-      else
+      } else {
+        val a2 = it2.toArray
         it1.flatMap{ v1 => a2.map(v2 => (Some(v1), Some(v2))) }
+      }
     } else {
-      a2.map{ v2 => (None, Some(v2)) }
+      it2.map{ v2 => (None, Some(v2)) }
     }
   }
 
