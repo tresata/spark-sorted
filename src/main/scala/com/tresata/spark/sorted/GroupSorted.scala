@@ -79,10 +79,8 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
   }
 
   def mergeJoinInner[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (V, W)] = {
-    val joined = mergeJoin(other, bufferLeft).mapPartitions({ iter =>
-      iter.collect{ case (k, (Some(v), Some(w))) => (k, (v, w)) }
-    }, true)
-    copy(joined, None)
+    val f = if (bufferLeft) swapSides(fMergeJoinInner[W, V]) else fMergeJoinInner[V, W]
+    mergeJoin(other, f)
   }
 
   def mergeJoinLeftOuter[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (V, Option[W])] = {

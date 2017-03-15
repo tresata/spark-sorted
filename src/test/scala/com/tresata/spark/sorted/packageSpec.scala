@@ -59,22 +59,22 @@ class packageSpec extends FunSpec with Checkers {
 
     it("should merge 2 sorted key-value iterators with a custom merge function") {
       check{ (a: List[(Int, Int)], b: List[(Int, Int)]) =>
-        val aSorted = a.sortBy(_._1)
-        val bSorted = b.sortBy(_._1)
+        val aSorted = a.sorted
+        val bSorted = b.sorted
         val f = { (it1: Iterator[Int], it2: Iterator[Int]) =>
-          val l1 = it1.toList
-          val l2 = it2.toList
-          val nTake = (l1 ++ l2).head % 10
-          (0 :: l1).take(nTake).flatMap{ v1 => (0 :: l2).take(nTake).map{ v2 => (v1, v2) } }
+          val buf1 = it1.buffered
+          val buf2 = it2.buffered
+          val nTake = (if (buf1.hasNext) buf1.head else if (buf2.hasNext) buf2.head else 0) % 10
+          buf1.zip(buf2).take(nTake)
         }
         val check = {
-          val aMap = a.groupBy(_._1).mapValues(_.map(_._2))
-          val bMap = b.groupBy(_._1).mapValues(_.map(_._2))
+          val aMap = a.groupBy(_._1).mapValues(_.map(_._2).sorted)
+          val bMap = b.groupBy(_._1).mapValues(_.map(_._2).sorted)
           (aMap.keySet ++ bMap.keySet).toList.sorted.flatMap{ k =>
             val l1 = aMap.getOrElse(k, List.empty)
             val l2 = bMap.getOrElse(k, List.empty)
             val nTake = (l1 ++ l2).head % 10
-            (0 :: l1).take(nTake).flatMap{ v1 => (0 :: l2).take(nTake).map{ v2 => (k, (v1, v2)) } }
+            l1.zip(l2).take(nTake).map{ v1v2 => (k, v1v2) }
           }
         }
         val result = mergeJoinIterators(aSorted.iterator, bSorted.iterator, f, implicitly[Ordering[Int]]).toList

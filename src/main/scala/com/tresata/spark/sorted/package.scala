@@ -70,6 +70,13 @@ object `package` {
     }
   }
 
+  private[sorted] def fMergeJoinInner[V1, V2: ClassTag]: (Iterator[V1], Iterator[V2]) => TraversableOnce[(V1, V2)] = { (it1, it2) =>
+    if (it1.hasNext && it2.hasNext) {
+      val a2 = it2.toArray
+      it1.flatMap{ v1 => a2.map(v2 => (v1, v2)) }
+    } else Iterator.empty
+  }
+
   private[sorted] def swapSides[V1, V2, U1, U2](f: (Iterator[V2], Iterator[V1]) => TraversableOnce[(U2, U1)]): (Iterator[V1], Iterator[V2]) => TraversableOnce[(U1, U2)] = {
     (it1, it2) => f(it2, it1).map(_.swap)
   }
