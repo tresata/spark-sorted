@@ -2,17 +2,20 @@ package com.tresata.spark.sorted.sql
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.sql.{ Dataset, Encoder }
+import org.apache.spark.sql.{ Column, Dataset, Encoder }
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.catalyst.encoders.{ encoderFor, ExpressionEncoder }
 
 import com.tresata.spark.sorted.{ mapStreamIterator, mapStreamIteratorWithContext, newWCreate }
 
 object GroupSortedDataset {
-  private[sql] def apply[K: Encoder, V](dataset: Dataset[(K, V)], numPartitions: Option[Int], reverse: Boolean): GroupSortedDataset[K, V] = {
+  private[sql] def apply[K: Encoder, V](dataset: Dataset[(K, V)], numPartitions: Option[Int], reverse: Boolean, sortBy: Column => Column): GroupSortedDataset[K, V] = {
     val key = col(dataset.columns.head)
-    val value = if (reverse) col(dataset.columns.last).desc else col(dataset.columns.last).asc
-    new GroupSortedDataset(numPartitions.map(dataset.repartition(_, key)).getOrElse(dataset.repartition(key)).sortWithinPartitions(key, value))
+    val valueSort = {
+      val sort = sortBy(col(dataset.columns.last))
+      if (reverse) sort.desc else sort.asc
+    }
+    new GroupSortedDataset(numPartitions.map(dataset.repartition(_, key)).getOrElse(dataset.repartition(key)).sortWithinPartitions(key, valueSort))
   }
 }
 

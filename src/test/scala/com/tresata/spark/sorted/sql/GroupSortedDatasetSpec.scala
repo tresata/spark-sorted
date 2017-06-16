@@ -19,7 +19,7 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
 
   def natOrd[V](reverse: Boolean)(implicit o: Ordering[V]): Ordering[V] = if (reverse) o.reverse else o
 
-  def validGroupSorted[K: TypeTag, V: TypeTag: Ordering](dataset: Dataset[(K, V)], reverse: Boolean = false): Boolean = {
+  def validGroupSorted[K: TypeTag, V: TypeTag, V1: Ordering](dataset: Dataset[(K, V)], reverse: Boolean, orderBy: V => V1): Boolean = {
     implicit val encoder: Encoder[Seq[(K, V)]] = ExpressionEncoder[Seq[(K, V)]]()
     val seq = dataset.mapPartitions(iter => Iterator(iter.toSeq)).collect.toSeq
 
@@ -27,15 +27,17 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
     val check1 = seq.map(_.map(_._1).toSet).reduce(_ ++ _).size == seq.map(_.map(_._1).toSet.size).reduce(_ + _)
 
     // check2 2: values are sorted per key
-    val valueOrdering = natOrd[V](reverse)
+    val valueOrdering = natOrd[V1](reverse)
     val check2 = seq.flatten.sliding(2).forall{
       case Seq((k1, _), (k2, _)) if k1 != k2 => true
       case Seq(_) => true
-      case Seq((k1, v1), (k2, v2)) if k1 == k2 => valueOrdering.compare(v1, v2) <= 0
+      case Seq((k1, v1), (k2, v2)) if k1 == k2 => valueOrdering.compare(orderBy(v1), orderBy(v2)) <= 0
     }
     
     check1 && check2
   }
+
+  def validGroupSorted[K: TypeTag, V: TypeTag: Ordering](dataset: Dataset[(K, V)], reverse: Boolean = false): Boolean = validGroupSorted[K, V, V](dataset, reverse, x => x)
 
   describe("PairDatasetFunctions") {
     it("should group-sort for randomly generated datasets") {
@@ -162,6 +164,19 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
         ("b", Seq("d", "e")),
         ("c", Seq()),
         ("c", Seq("x"))
+      ))
+    }
+
+    it("should sort by function") {
+      val ds = Seq(("a", ("b", Map("b" -> 1))), ("a", ("a", Map("a" -> 1)))).toDS
+      val x = ds
+        .groupSort(2, reverse = true, sortBy = col => col("_1"))
+        .mapStreamByKey(iter => iter)
+
+      assert(validGroupSorted[String, (String, Map[String, Int]), String](x, true, v => v._1))
+      assert(x === Seq(
+        ("a", ("b", Map("b" -> 1))),
+        ("a", ("a", Map("a" -> 1)))
       ))
     }
   }
