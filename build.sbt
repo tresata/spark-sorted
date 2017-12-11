@@ -11,7 +11,7 @@ lazy val root = (project in file(".")).settings(
   scalacOptions in (Test, console) := (scalacOptions in (Test, console)).value.filter(_ != "-Ywarn-unused-import"),
   // sbt-spark-package settings
   spName := "tresata/spark-sorted",
-  sparkVersion := "2.2.0",
+  sparkVersion := "2.2.1",
   sparkComponents ++= Seq("core", "sql"),
   spIncludeMaven := true,
   spAppendScalaVersion := true,
