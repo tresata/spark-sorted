@@ -17,7 +17,7 @@ lazy val root = (project in file(".")).settings(
   spAppendScalaVersion := true,
   // end sbt-spark-package settings
   licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
-  libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % "test",
+  libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % "test",
   libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test",
   libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
