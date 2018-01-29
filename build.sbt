@@ -9,17 +9,14 @@ lazy val root = (project in file(".")).settings(
   scalacOptions in (Test, compile) := (scalacOptions in (Test, compile)).value.filter(_ != "-Ywarn-value-discard").filter(_ != "-Ywarn-unused"),
   scalacOptions in (Compile, console) := (scalacOptions in (Compile, console)).value.filter(_ != "-Ywarn-unused-import"),
   scalacOptions in (Test, console) := (scalacOptions in (Test, console)).value.filter(_ != "-Ywarn-unused-import"),
-  // sbt-spark-package settings
-  spName := "tresata/spark-sorted",
-  sparkVersion := "2.2.1",
-  sparkComponents ++= Seq("core", "sql"),
-  spIncludeMaven := true,
-  spAppendScalaVersion := true,
-  // end sbt-spark-package settings
   licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
-  libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % "test",
-  libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test",
-  libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.5" % "test",
+  libraryDependencies ++= Seq(
+    "org.apache.spark" %% "spark-core" % "2.2.1" % "provided",
+    "org.apache.spark" %% "spark-sql" % "2.2.1" % "provided",
+    "org.scalatest" %% "scalatest" % "3.0.4" % "test",
+    "com.novocode" % "junit-interface" % "0.11" % "test",
+    "org.scalacheck" %% "scalacheck" % "1.13.5" % "test"
+  ),
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
   testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
   publishMavenStyle := true,
@@ -33,7 +30,6 @@ lazy val root = (project in file(".")).settings(
       Some("releases"  at nexus + "service/local/staging/deploy/maven2")
   },
   credentials += Credentials(Path.userHome / ".m2" / "credentials_sonatype"),
-  credentials += Credentials(Path.userHome / ".m2" / "credentials_spark_packages"),
   pomExtra := (
     <url>https://github.com/tresata/spark-sorted</url>
         <scm>
