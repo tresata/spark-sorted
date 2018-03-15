@@ -13,7 +13,7 @@ lazy val root = (project in file(".")).settings(
   libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-core" % "2.3.0" % "provided",
     "org.apache.spark" %% "spark-sql" % "2.3.0" % "provided",
-    "org.scalatest" %% "scalatest" % "3.0.4" % "test",
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
     "com.novocode" % "junit-interface" % "0.11" % "test",
     "org.scalacheck" %% "scalacheck" % "1.13.5" % "test"
   ),
