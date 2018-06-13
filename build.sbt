@@ -25,11 +25,12 @@ lazy val root = (project in file(".")).settings(
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
-      Some("snapshots" at nexus + "content/repositories/snapshots")
+      Some("tresata-snapshots" at "http://server02.tresata.com:8081/artifactory/libs-snapshot-local")
     else
       Some("releases"  at nexus + "service/local/staging/deploy/maven2")
   },
   credentials += Credentials(Path.userHome / ".m2" / "credentials_sonatype"),
+  credentials += Credentials(Path.userHome / ".m2" / "credentials_artifactory"),
   pomExtra := (
     <url>https://github.com/tresata/spark-sorted</url>
         <scm>
