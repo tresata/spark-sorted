@@ -3,6 +3,7 @@ lazy val root = (project in file(".")).settings(
   name := "spark-sorted",
   version := "1.6.0-SNAPSHOT",
   scalaVersion := "2.11.8",
+  crossScalaVersions := Seq("2.11.12", "2.12.7"),
   javacOptions in (Compile, compile) ++= Seq("-Xlint:unchecked", "-source", "1.8", "-target", "1.8"),
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-target:jvm-1.8", "-feature", "-language:_", "-Xlint:-package-object-classes,-adapted-args,_",
     "-Ywarn-unused-import", "-Ywarn-dead-code", "-Ywarn-value-discard", "-Ywarn-unused"),
