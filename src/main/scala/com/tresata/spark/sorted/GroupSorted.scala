@@ -62,11 +62,11 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
 
     val partitioner1 = defaultPartitioner(this, other)
     val left = this.partitioner match {
-      case Some(partitioner1) => this
+      case Some(_) => this
       case _ => GroupSorted(this, partitioner1, keyOrdering, None)
     }
     val right = other.partitioner match {
-      case Some(partitioner1) => other
+      case Some(_) => other
       case _ => GroupSorted(other, partitioner1, keyOrdering, None)
     }
     val zipped = left.zipPartitions(right, true)(mergeJoinIterators(_, _, f, keyOrdering))
@@ -84,7 +84,7 @@ class GroupSorted[K, V] private (rdd: RDD[(K, V)], val keyOrdering: Ordering[K],
   }
 
   def mergeJoinLeftOuter[W: ClassTag](other: GroupSorted[K, W], bufferLeft: Boolean = false): GroupSorted[K, (V, Option[W])] = {
-    val joined = mergeJoin(other).mapPartitions({ iter =>
+    val joined = mergeJoin(other, bufferLeft).mapPartitions({ iter =>
       iter.collect{ case (k, (Some(v), maybeW)) => (k, (v, maybeW)) }
     }, true)
     copy(joined, None)
