@@ -3,7 +3,7 @@ lazy val root = (project in file(".")).settings(
   name := "spark-sorted",
   version := "1.7.0-SNAPSHOT",
   scalaVersion := "2.11.12",
-  crossScalaVersions := Seq("2.11.12", "2.12.7"),
+  crossScalaVersions := Seq("2.11.12", "2.12.8"),
   javacOptions in (Compile, compile) ++= Seq("-Xlint:unchecked", "-source", "1.8", "-target", "1.8"),
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-target:jvm-1.8", "-feature", "-language:_", "-Xlint:-package-object-classes,-adapted-args,_",
     "-Ywarn-unused-import", "-Ywarn-dead-code", "-Ywarn-value-discard", "-Ywarn-unused"),
@@ -14,7 +14,7 @@ lazy val root = (project in file(".")).settings(
   libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-core" % "2.4.0" % "provided",
     "org.apache.spark" %% "spark-sql" % "2.4.0" % "provided",
-    "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    "org.scalatest" %% "scalatest" % "3.0.6" % "test",
     "com.novocode" % "junit-interface" % "0.11" % "test",
     "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
   ),
