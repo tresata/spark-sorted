@@ -4,7 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe.TypeTag
 
 import org.scalatest.FunSpec
-import org.scalatest.prop.Checkers
+import org.scalatestplus.scalacheck.Checkers
 
 import org.apache.spark.sql.{ Dataset, Encoder }
 import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder

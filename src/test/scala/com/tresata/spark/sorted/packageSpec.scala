@@ -1,7 +1,7 @@
 package com.tresata.spark.sorted
 
 import org.scalatest.FunSpec
-import org.scalatest.prop.Checkers
+import org.scalatestplus.scalacheck.Checkers
 
 class packageSpec extends FunSpec with Checkers {
   describe("mapStreamIterator") {

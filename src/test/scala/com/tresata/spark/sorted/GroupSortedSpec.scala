@@ -2,7 +2,7 @@ package com.tresata.spark.sorted
 
 import scala.collection.mutable.ArrayBuffer
 import org.scalatest.FunSpec
-import org.scalatest.prop.Checkers
+import org.scalatestplus.scalacheck.Checkers
 
 case class TimeValue(time: Int, value: Double)
 
