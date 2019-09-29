@@ -26,7 +26,7 @@ lazy val root = (project in file(".")).settings(
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
-      Some("snapshots" at "http://server02.tresata.com:8081/artifactory/oss-libs-snapshot-local")
+      Some("snapshots" at "https://server02.tresata.com:8084/artifactory/oss-libs-snapshot-local")
     else
       Some("releases"  at nexus + "service/local/staging/deploy/maven2")
   },
