@@ -47,3 +47,7 @@ Release 1.0.0 will also add initial support for the groupSort operation on Spark
 ## Update Jan 2017
 
 Starting with release 1.2.0 Java 7 is no longer supported.
+
+## Update June 2020
+
+Starting with release 2.0.0 this library compiles against Spark 3. Because of this Spark 2 and Scala 2.11 are no longer supported. We are still compiling with Java 8.
