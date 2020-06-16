@@ -1,6 +1,5 @@
 package com.tresata.spark.sorted.api.java
 
-import java.lang.{Iterable => JIterable }
 import java.util.{ Comparator, Iterator => JIterator }
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
@@ -8,7 +7,7 @@ import scala.collection.JavaConverters._
 import org.apache.spark.{ Partitioner, HashPartitioner }
 import org.apache.spark.Partitioner.defaultPartitioner
 import org.apache.spark.api.java.JavaPairRDD
-import org.apache.spark.api.java.function.{ Function => JFunction, Function2 => JFunction2 }
+import org.apache.spark.api.java.function.{ Function => JFunction, Function2 => JFunction2, FlatMapFunction => JFlatMapFunction }
 
 import com.tresata.spark.sorted.{ GroupSorted => SGroupSorted }
 
@@ -51,7 +50,7 @@ class GroupSorted[K, V] private (sGroupSorted: SGroupSorted[K, V]) extends JavaP
 
   import GroupSorted._
 
-  override def flatMapValues[W](f: JFunction[V, JIterable[W]]): GroupSorted[K, W] = {
+  override def flatMapValues[W](f: JFlatMapFunction[V, W]): GroupSorted[K, W] = {
     implicit def wClassTag: ClassTag[W] = fakeClassTag[W]
     new GroupSorted[K, W](sGroupSorted.flatMapValues(v => f.call(v).asScala))
   }

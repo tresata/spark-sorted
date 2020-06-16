@@ -24,7 +24,7 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
     val seq = dataset.mapPartitions(iter => Iterator(iter.toSeq)).collect.toSeq
 
     // check 1: no overlap in keys between partitions
-    val check1 = seq.map(_.map(_._1).toSet).reduce(_ ++ _).size == seq.map(_.map(_._1).toSet.size).reduce(_ + _)
+    val check1 = seq.map(_.map(_._1).toSet).reduceOption(_ ++ _).map(_.size) == seq.map(_.map(_._1).toSet.size).reduceOption(_ + _)
 
     // check2 2: values are sorted per key
     val valueOrdering = natOrd[V1](reverse)
@@ -40,6 +40,18 @@ class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
   def validGroupSorted[K: TypeTag, V: TypeTag: Ordering](dataset: Dataset[(K, V)], reverse: Boolean = false): Boolean = validGroupSorted[K, V, V](dataset, reverse, x => x)
 
   describe("PairDatasetFunctions") {
+    it("should group-sort for empty dataset") {
+      val seq = Seq.empty[(String, String)]
+      val reverse = true
+
+      val ds = seq.toDS
+        .groupSort(2, reverse)
+        .toDS
+        .cache
+
+      validGroupSorted(ds, reverse) && ds === seq
+    }
+
     it("should group-sort for randomly generated datasets") {
       check{ (seq: Seq[(String, String)], reverse: Boolean) =>
         val ds = seq.toDS
