@@ -13,9 +13,9 @@ lazy val root = (project in file(".")).settings(
   libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-core" % "3.0.1" % "provided",
     "org.apache.spark" %% "spark-sql" % "3.0.1" % "provided",
-    "org.scalatest" %% "scalatest" % "3.0.8" % "test",
+    "org.scalatest" %% "scalatest" % "3.0.9" % "test",
     "com.novocode" % "junit-interface" % "0.11" % "test",
-    "org.scalacheck" %% "scalacheck" % "1.14.2" % "test"
+    "org.scalacheck" %% "scalacheck" % "1.15.2" % "test"
   ),
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
   testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
