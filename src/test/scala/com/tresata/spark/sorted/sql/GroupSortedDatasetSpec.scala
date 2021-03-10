@@ -3,7 +3,7 @@ package com.tresata.spark.sorted.sql
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe.TypeTag
 
-import org.scalatest.FunSpec
+import org.scalatest.funspec.AnyFunSpec
 import org.scalatestplus.scalacheck.Checkers
 
 import org.apache.spark.sql.{ Dataset, Encoder }
@@ -14,7 +14,7 @@ import PairDatasetFunctions._
 
 case class TimeValue(time: Int, value: Double)
 
-class GroupSortedDatasetSpec extends FunSpec with Checkers with SparkSuite {
+class GroupSortedDatasetSpec extends AnyFunSpec with Checkers with SparkSuite {
   import spark.implicits._
 
   def natOrd[V](reverse: Boolean)(implicit o: Ordering[V]): Ordering[V] = if (reverse) o.reverse else o

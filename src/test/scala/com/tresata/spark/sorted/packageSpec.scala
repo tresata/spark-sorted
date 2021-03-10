@@ -1,9 +1,9 @@
 package com.tresata.spark.sorted
 
-import org.scalatest.FunSpec
+import org.scalatest.funspec.AnyFunSpec
 import org.scalatestplus.scalacheck.Checkers
 
-class packageSpec extends FunSpec with Checkers {
+class packageSpec extends AnyFunSpec with Checkers {
   describe("mapStreamIterator") {
     it("should mapStream a key-value iterator") {
       check{ (l: List[(Int, Int)]) =>

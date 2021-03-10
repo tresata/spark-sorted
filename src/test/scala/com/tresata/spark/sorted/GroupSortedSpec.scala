@@ -1,12 +1,12 @@
 package com.tresata.spark.sorted
 
 import scala.collection.mutable.ArrayBuffer
-import org.scalatest.FunSpec
+import org.scalatest.funspec.AnyFunSpec
 import org.scalatestplus.scalacheck.Checkers
 
 case class TimeValue(time: Int, value: Double)
 
-class GroupSortedSpec extends FunSpec with Checkers with SparkSuite {
+class GroupSortedSpec extends AnyFunSpec with Checkers with SparkSuite {
   import PairRDDFunctions._
 
   def validGroupSorted[K, V](x: GroupSorted[K, V]): Boolean = {
