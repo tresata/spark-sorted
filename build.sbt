@@ -3,12 +3,12 @@ lazy val root = (project in file(".")).settings(
   name := "spark-sorted",
   version := "2.2.0-SNAPSHOT",
   scalaVersion := "2.12.10",
-  javacOptions in (Compile, compile) ++= Seq("-Xlint:unchecked", "-source", "1.8", "-target", "1.8"),
+  Compile / compile / javacOptions ++= Seq("-Xlint:unchecked", "-source", "1.8", "-target", "1.8"),
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-target:jvm-1.8", "-feature", "-language:_", "-Xlint:-package-object-classes,-adapted-args,_",
     "-Ywarn-unused-import", "-Ywarn-dead-code", "-Ywarn-value-discard", "-Ywarn-unused"),
-  scalacOptions in (Test, compile) := (scalacOptions in (Test, compile)).value.filter(_ != "-Ywarn-value-discard").filter(_ != "-Ywarn-unused"),
-  scalacOptions in (Compile, console) := (scalacOptions in (Compile, console)).value.filter(_ != "-Ywarn-unused-import"),
-  scalacOptions in (Test, console) := (scalacOptions in (Test, console)).value.filter(_ != "-Ywarn-unused-import"),
+  Test / compile / scalacOptions := (Test / compile / scalacOptions).value.filter(_ != "-Ywarn-value-discard").filter(_ != "-Ywarn-unused"),
+  Compile / console / scalacOptions := (Compile / console / scalacOptions).value.filter(_ != "-Ywarn-unused-import"),
+  Test / console / scalacOptions := (Test / console / scalacOptions).value.filter(_ != "-Ywarn-unused-import"),
   licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
   libraryDependencies ++= Seq(
     "org.apache.spark" %% "spark-core" % "3.1.1" % "provided",
@@ -18,11 +18,11 @@ lazy val root = (project in file(".")).settings(
     "com.novocode" % "junit-interface" % "0.11" % "test",
     "org.scalacheck" %% "scalacheck" % "1.15.3" % "test"
   ),
-  testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
   testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
   publishMavenStyle := true,
   pomIncludeRepository := { x => false },
-  publishArtifact in Test := false,
+  Test / publishArtifact := false,
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
