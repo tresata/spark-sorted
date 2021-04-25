@@ -20,7 +20,7 @@ object GroupSortedDataset {
 }
 
 class GroupSortedDataset[K: Encoder, V] private (dataset: Dataset[(K, V)]) extends Serializable {
-  def toDS: Dataset[(K, V)] = dataset
+  def toDS(): Dataset[(K, V)] = dataset
 
   def mapStreamByKey[W: Encoder, C](c: () => C)(f: (C, Iterator[V]) => TraversableOnce[W]): Dataset[(K, W)] = {
     implicit val kwEncoder: Encoder[(K, W)] = ExpressionEncoder.tuple(encoderFor[K], encoderFor[W])

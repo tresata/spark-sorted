@@ -8,7 +8,7 @@ import org.apache.spark.sql.{ Dataset, SparkSession }
 
 object SparkSuite {
   lazy val spark: SparkSession = {
-    val session = SparkSession.builder
+    val session = SparkSession.builder()
       .master("local[*]")
       .appName("test")
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
@@ -28,11 +28,11 @@ trait SparkSuite {
   implicit lazy val sc: SparkContext = SparkSuite.spark.sparkContext
 
   implicit def rddEq[X]: Equality[RDD[X]] = new Equality[RDD[X]] {
-    private def toCounts[Y](s: Seq[Y]): Map[Y, Int] = s.groupBy(identity).mapValues(_.size)
+    private def toCounts[Y](s: Seq[Y]): Map[Y, Int] = s.groupBy(identity).mapValues(_.size).toMap
 
     def areEqual(a: RDD[X], b: Any): Boolean = b match {
-      case s: Seq[_] => toCounts(a.collect) == toCounts(s)
-      case rdd: RDD[_] => toCounts(a.collect) == toCounts(rdd.collect)
+      case s: Seq[_] => toCounts(a.collect()) == toCounts(s)
+      case rdd: RDD[_] => toCounts(a.collect()) == toCounts(rdd.collect())
     }
   }
 

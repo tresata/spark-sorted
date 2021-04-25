@@ -87,7 +87,7 @@ object `package` {
     def iterForKey[V](key: K, bit: BufferedIterator[(K, V)]): Iterator[V] = new Iterator[V]{
       override def hasNext: Boolean = bit.hasNext && bit.head._1 == key
 
-      override def next: V = if (hasNext) bit.next._2 else throw new NoSuchElementException("next on empty iterator")
+      override def next(): V = if (hasNext) bit.next()._2 else throw new NoSuchElementException("next on empty iterator")
     }
 
     new Iterator[(K, W)] {
@@ -176,7 +176,7 @@ object `package` {
     val wBuffer = SparkEnv.get.serializer.newInstance().serialize(w)
     val wArray = new Array[Byte](wBuffer.limit)
     wBuffer.get(wArray)
-    lazy val cachedSerializer = SparkEnv.get.serializer.newInstance
+    lazy val cachedSerializer = SparkEnv.get.serializer.newInstance()
     () => cachedSerializer.deserialize[W](ByteBuffer.wrap(wArray))
   }
 }
