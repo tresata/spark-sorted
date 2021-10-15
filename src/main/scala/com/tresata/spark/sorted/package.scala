@@ -3,6 +3,7 @@ package com.tresata.spark.sorted
 import java.nio.ByteBuffer
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
+import scala.collection.BufferedIterator
 
 import org.apache.spark.SparkEnv
 
