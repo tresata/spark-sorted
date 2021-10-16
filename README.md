@@ -1,4 +1,4 @@
-[![Build Status](https://api-staging.travis-ci.com/tresata/spark-sorted.svg?branch=master)](https://staging.travis-ci.com/tresata/spark-sorted)
+![Build Status](https://github.com/tresata/spark-sorted/actions/workflows/ci.yml/badge.svg)
 
 # spark-sorted
 Spark-sorted is a library that aims to make non-reduce type operations on very large groups in spark possible, including support for processing ordered values.  To do so it relies on Spark's new sort-based shuffle and on never materializing the group for a given key but instead representing it by consecutive rows within a partition that get processed with a map-like (iterator based streaming) operation.

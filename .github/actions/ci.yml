@@ -1,0 +1,23 @@
+name: CI
+on:
+  pull_request:
+  push:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - java: 8
+          - java: 11
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v1
+    - name: setup
+      uses: olafurpg/setup-scala@v10
+      with:
+        java-version: "adopt@1.${{ matrix.java }}"
+    - name: test
+      run: sbt -v -Dfile.encoding=UTF8 +test
+      shell: bash
