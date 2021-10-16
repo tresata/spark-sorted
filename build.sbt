@@ -36,15 +36,15 @@ lazy val root = (project in file(".")).settings(
   Global / useGpgPinentry := true,
   pomExtra := (
     <url>https://github.com/tresata/spark-sorted</url>
-        <scm>
+    <scm>
       <url>git@github.com:tresata/spark-sorted.git</url>
       <connection>scm:git:git@github.com:tresata/spark-sorted.git</connection>
-      </scm>
-      <developers>
+    </scm>
+    <developers>
       <developer>
-      <id>koertkuipers</id>
-      <name>Koert Kuipers</name>
-      <url>https://github.com/koertkuipers</url>
-        </developer>
-      </developers>)
+        <id>koertkuipers</id>
+        <name>Koert Kuipers</name>
+        <url>https://github.com/koertkuipers</url>
+      </developer>
+    </developers>)
 )
