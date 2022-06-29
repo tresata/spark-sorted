@@ -3,7 +3,7 @@ lazy val root = (project in file(".")).settings(
   name := "spark-sorted",
   version := "2.3.0-SNAPSHOT",
   scalaVersion := "2.12.15",
-  crossScalaVersions := Seq("2.12.15", "2.13.5"),
+  crossScalaVersions := Seq("2.12.15", "2.13.8"),
   Compile / compile / javacOptions ++= Seq("-Xlint:unchecked", "-source", "1.8", "-target", "1.8"),
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-target:jvm-1.8", "-feature", "-language:_", "-Xlint:-package-object-classes,-adapted-args,_",
     "-Ywarn-unused:-imports", "-Ywarn-dead-code", "-Ywarn-value-discard", "-Ywarn-unused"),
@@ -12,12 +12,12 @@ lazy val root = (project in file(".")).settings(
   Test / console / scalacOptions := (Test / console / scalacOptions).value.filter(_ != "-Ywarn-unused-import"),
   licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
   libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-core" % "3.2.1" % "provided",
-    "org.apache.spark" %% "spark-sql" % "3.2.1" % "provided",
-    "org.scalatest" %% "scalatest-funspec" % "3.2.11" % "test",
-    "org.scalatestplus" %% "scalacheck-1-15" % "3.2.11.0" % "test",
+    "org.apache.spark" %% "spark-core" % "3.3.0" % "provided",
+    "org.apache.spark" %% "spark-sql" % "3.3.0" % "provided",
+    "org.scalatest" %% "scalatest-funspec" % "3.2.12" % "test",
+    "org.scalatestplus" %% "scalacheck-1-16" % "3.2.12.0" % "test",
     "com.novocode" % "junit-interface" % "0.11" % "test",
-    "org.scalacheck" %% "scalacheck" % "1.15.4" % "test"
+    "org.scalacheck" %% "scalacheck" % "1.16.0" % "test"
   ),
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oF"),
   testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
