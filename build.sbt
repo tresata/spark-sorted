@@ -12,8 +12,8 @@ lazy val root = (project in file(".")).settings(
   Test / console / scalacOptions := (Test / console / scalacOptions).value.filter(_ != "-Ywarn-unused-import"),
   licenses += "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"),
   libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-core" % "3.4.0" % "provided",
-    "org.apache.spark" %% "spark-sql" % "3.4.0" % "provided",
+    "org.apache.spark" %% "spark-core" % "3.4.1" % "provided",
+    "org.apache.spark" %% "spark-sql" % "3.4.1" % "provided",
     "org.scalatest" %% "scalatest-funspec" % "3.2.16" % "test",
     "org.scalatestplus" %% "scalacheck-1-17" % "3.2.16.0" % "test",
     "com.novocode" % "junit-interface" % "0.11" % "test",
